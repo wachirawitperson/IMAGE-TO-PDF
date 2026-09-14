@@ -1,4 +1,4 @@
-﻿const http = require('http');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -301,6 +301,128 @@ async function runTests() {
     await fileInput.setInputFiles(fixtureFiles);
     await page.waitForSelector('.thumb-card');
 
+    // =========================================================================
+    // TEACHER PDF LAB NAVIGATION TESTS
+    // =========================================================================
+
+    // Test Nav 1: Approved navigation items in exact order
+    const expectedTools = [
+      'รูปภาพ → PDF',
+      'รวม PDF',
+      'แยก PDF',
+      'จัดหน้า PDF',
+      'PDF → รูปภาพ',
+      'ใส่เลขหน้า',
+      'OCR PDF',
+      'เพิ่มเติม'
+    ];
+
+    const actualTools = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('#toolsNavTrack > .nav-tool-item, #toolsNavTrack > .nav-dropdown-wrapper > .nav-dropdown-btn'));
+      return items.map(item => item.querySelector('span')?.textContent.trim());
+    });
+
+    const toolsMatch = expectedTools.length === actualTools.length && expectedTools.every((t, i) => actualTools[i] === t);
+    record('Test Nav 1: Top navigation renders approved tools in exact priority order', toolsMatch, `Tools: ${actualTools.join(' | ')}`);
+
+    // Test Nav 2: Active state on current tool
+    const activeState = await page.evaluate(() => {
+      const activeBtn = document.querySelector('.nav-tool-item.active');
+      return {
+        toolId: activeBtn?.dataset.toolId,
+        ariaCurrent: activeBtn?.getAttribute('aria-current'),
+        isActiveClass: activeBtn?.classList.contains('active')
+      };
+    });
+    record('Test Nav 2: Active tool รูปภาพ → PDF is highlighted with aria-current="page"', 
+      activeState.toolId === 'image-to-pdf' && activeState.ariaCurrent === 'page' && activeState.isActiveClass, 
+      `Active: ${activeState.toolId}, aria-current: ${activeState.ariaCurrent}`);
+
+    // Test Nav 3: Switch to unfinished tool displays clean placeholder without fake functionality
+    await page.click('[data-tool-id="merge-pdf"]');
+    const placeholderState = await page.evaluate(() => {
+      const screen = document.getElementById('comingSoonScreen');
+      const title = document.getElementById('comingSoonTitle')?.textContent.trim();
+      const lead = document.getElementById('comingSoonLead')?.textContent.trim();
+      const workspaceHidden = document.getElementById('workspaceScreen')?.classList.contains('hidden');
+      const badge = screen?.querySelector('.badge-status')?.textContent.trim();
+      return {
+        screenVisible: screen && !screen.classList.contains('hidden'),
+        title,
+        lead,
+        workspaceHidden,
+        badge
+      };
+    });
+    record('Test Nav 3: Unfinished tool shows "กำลังพัฒนา" & "เครื่องมือนี้จะพร้อมใช้งานในเร็ว ๆ นี้"',
+      placeholderState.screenVisible && placeholderState.workspaceHidden && placeholderState.badge === 'กำลังพัฒนา',
+      `Title: ${placeholderState.title}, Badge: ${placeholderState.badge}, Lead: ${placeholderState.lead}`);
+
+    // Test Nav 4: Return to IMAGE -> PDF restores workspace with all items intact
+    await page.click('#btnBackToImageToPdf');
+    const restoredState = await page.evaluate(() => {
+      const workspaceVisible = !document.getElementById('workspaceScreen')?.classList.contains('hidden');
+      const activeBtn = document.querySelector('.nav-tool-item.active');
+      const cardCount = document.querySelectorAll('#thumbnailGrid .thumb-card').length;
+      return {
+        workspaceVisible,
+        activeToolId: activeBtn?.dataset.toolId,
+        cardCount
+      };
+    });
+    record('Test Nav 4: Returning to รูปภาพ → PDF restores full workspace with zero item loss',
+      restoredState.workspaceVisible && restoredState.activeToolId === 'image-to-pdf' && restoredState.cardCount === 3,
+      `Cards preserved: ${restoredState.cardCount}, Active: ${restoredState.activeToolId}`);
+
+    // Test Nav 5: Dropdown menu renders extended tools and toggles correctly
+    await page.click('#btnMoreTools');
+    const dropdownOpened = await page.evaluate(() => {
+      const wrapper = document.getElementById('navDropdownWrapper');
+      const menu = document.getElementById('moreToolsMenu');
+      const items = Array.from(menu.querySelectorAll('.dropdown-item span:first-of-type')).map(s => s.textContent.trim());
+      return {
+        isOpen: wrapper.classList.contains('open') && !menu.classList.contains('hidden'),
+        items
+      };
+    });
+    const expectedMore = ['ใส่ลายน้ำ', 'ครอบตัด PDF', 'PDF → Word', 'PDF → PowerPoint', 'PDF → Excel'];
+    const dropdownItemsMatch = expectedMore.every(m => dropdownOpened.items.includes(m));
+    record('Test Nav 5: เพิ่มเติม ▾ dropdown opens and displays all secondary tools',
+      dropdownOpened.isOpen && dropdownItemsMatch,
+      `Items: ${dropdownOpened.items.join(', ')}`);
+
+    // Test Nav 6: Selecting item inside dropdown switches to its placeholder and closes dropdown
+    await page.click('[data-tool-id="pdf-to-word"]');
+    const wordToolState = await page.evaluate(() => {
+      const wrapper = document.getElementById('navDropdownWrapper');
+      const menu = document.getElementById('moreToolsMenu');
+      const title = document.getElementById('comingSoonTitle')?.textContent.trim();
+      return {
+        dropdownClosed: !wrapper.classList.contains('open') && menu.classList.contains('hidden'),
+        title
+      };
+    });
+    record('Test Nav 6: Selecting dropdown tool switches view and closes menu',
+      wordToolState.dropdownClosed && wordToolState.title === 'PDF → Word',
+      `Title: ${wordToolState.title}, Dropdown closed: ${wordToolState.dropdownClosed}`);
+
+    // Test Nav 7: Clicking logo brand switches back to รูปภาพ → PDF
+    await page.click('#navBrand');
+    const brandClickRestored = await page.evaluate(() => {
+      const activeBtn = document.querySelector('.nav-tool-item.active');
+      return activeBtn?.dataset.toolId === 'image-to-pdf';
+    });
+    record('Test Nav 7: Clicking brand logo returns to รูปภาพ → PDF', brandClickRestored, 'Brand click navigation works');
+
+    // Test Nav 8: Escape key closes dropdown
+    await page.click('#btnMoreTools');
+    await page.keyboard.press('Escape');
+    const escapeClosed = await page.evaluate(() => {
+      const wrapper = document.getElementById('navDropdownWrapper');
+      return !wrapper.classList.contains('open');
+    });
+    record('Test Nav 8: Pressing Escape closes dropdown menu accessible', escapeClosed, `Dropdown closed on Escape: ${escapeClosed}`);
+
     const viewports = [
       { name: '1440x900_Desktop', width: 1440, height: 900 },
       { name: '1280x800_Laptop', width: 1280, height: 800 },
@@ -310,8 +432,11 @@ async function runTests() {
       { name: '375x667_Mobile_Small', width: 375, height: 667 }
     ];
 
+    await page.evaluate(() => window.scrollTo(0, 0));
+
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(250);
 
       // Check horizontal overflow

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -25,7 +25,7 @@
     
     <!-- Top Navigation Header -->
     <header class="top-nav" role="banner">
-      <div class="nav-brand">
+      <div class="nav-brand" id="navBrand" role="button" tabindex="0" title="กลับหน้าแรก IMAGE → PDF">
         <div class="logo-mark" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
@@ -42,34 +42,180 @@
           </svg>
         </div>
         <div class="brand-titles">
-          <h1 class="product-title">IMAGE → PDF</h1>
+          <div class="brand-heading-row">
+            <h1 class="product-title">IMAGE → PDF</h1>
+            <span class="lab-tag" title="Teacher PDF Lab Utility">Teacher PDF Lab</span>
+          </div>
           <p class="product-subtitle">รวมรูปภาพเป็นไฟล์ PDF ได้อย่างง่ายดาย</p>
         </div>
       </div>
-      
-      <!-- Header Actions (Visible when items > 0) -->
-      <div class="header-actions hidden" id="headerActions">
-        <span class="file-count-badge" id="fileCountBadge" aria-live="polite">0 รูป</span>
-        <button type="button" class="btn btn-secondary btn-sm" id="btnAddMoreTop" aria-label="เพิ่มรูปภาพ">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <span class="hide-mobile">เพิ่มรูปภาพ</span>
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearAll" title="ล้างรูปภาพทั้งหมด">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-          </svg>
-          <span class="hide-mobile">ล้างทั้งหมด</span>
-        </button>
-      </div>
-      
-      <!-- Privacy Pill -->
-      <div class="privacy-pill">
-        <span class="dot-live"></span>
-        <span>Local 100% • ไม่ส่งข้อมูลออก</span>
+
+      <!-- Main Tools Navigation -->
+      <nav class="tools-nav-bar" id="toolsNav" aria-label="เครื่องมือจัดการ PDF สำหรับครู">
+        <div class="tools-nav-track" id="toolsNavTrack" role="menubar">
+          <!-- 1. รูปภาพ → PDF (Active primary tool) -->
+          <button type="button" class="nav-tool-item active" data-tool-id="image-to-pdf" role="menuitem" aria-current="page" title="รูปภาพ → PDF">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span>รูปภาพ → PDF</span>
+          </button>
+
+          <!-- 2. รวม PDF -->
+          <button type="button" class="nav-tool-item" data-tool-id="merge-pdf" role="menuitem" title="รวมไฟล์ PDF หลายไฟล์เข้าด้วยกัน">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 2h11a2 2 0 0 1 2 2v11"/>
+              <rect x="3" y="7" width="13" height="13" rx="2"/>
+            </svg>
+            <span>รวม PDF</span>
+          </button>
+
+          <!-- 3. แยก PDF -->
+          <button type="button" class="nav-tool-item" data-tool-id="split-pdf" role="menuitem" title="แยกหน้าเอกสาร PDF">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="2" y1="13" x2="22" y2="13" stroke-dasharray="3 3"/>
+            </svg>
+            <span>แยก PDF</span>
+          </button>
+
+          <!-- 4. จัดหน้า PDF -->
+          <button type="button" class="nav-tool-item" data-tool-id="organize-pdf" role="menuitem" title="จัดเรียง หมุน หรือลบหน้าใน PDF">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span>จัดหน้า PDF</span>
+          </button>
+
+          <!-- 5. PDF → รูปภาพ -->
+          <button type="button" class="nav-tool-item" data-tool-id="pdf-to-image" role="menuitem" title="แปลงหน้า PDF เป็นรูปภาพ">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <span>PDF → รูปภาพ</span>
+          </button>
+
+          <!-- 6. ใส่เลขหน้า -->
+          <button type="button" class="nav-tool-item" data-tool-id="page-number" role="menuitem" title="ใส่หมายเลขหน้าลงในเอกสาร PDF">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 19h16"/>
+              <line x1="10" y1="4" x2="8" y2="20"/>
+              <line x1="16" y1="4" x2="14" y2="20"/>
+              <line x1="6" y1="9" x2="18" y2="9"/>
+              <line x1="6" y1="15" x2="18" y2="15"/>
+            </svg>
+            <span>ใส่เลขหน้า</span>
+          </button>
+
+          <!-- 7. OCR PDF -->
+          <button type="button" class="nav-tool-item" data-tool-id="ocr-pdf" role="menuitem" title="สแกนและแปลงข้อความใน PDF">
+            <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 7V4h3"/>
+              <path d="M20 7V4h-3"/>
+              <path d="M4 17v3h3"/>
+              <path d="M20 17v3h-3"/>
+              <line x1="9" y1="9" x2="15" y2="9"/>
+              <line x1="12" y1="9" x2="12" y2="15"/>
+            </svg>
+            <span>OCR PDF</span>
+          </button>
+
+          <!-- 8. เพิ่มเติม ▾ -->
+          <div class="nav-dropdown-wrapper" id="navDropdownWrapper">
+            <button type="button" class="nav-tool-item nav-dropdown-btn" id="btnMoreTools" aria-haspopup="true" aria-expanded="false" title="เครื่องมือเพิ่มเติม">
+              <span>เพิ่มเติม</span>
+              <svg class="caret-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="nav-dropdown-menu hidden" id="moreToolsMenu" role="menu" aria-label="เครื่องมือเพิ่มเติม">
+              <div class="dropdown-header">เครื่องมือเพิ่มเติมสำหรับครู</div>
+              <button type="button" class="dropdown-item" data-tool-id="watermark-pdf" role="menuitem">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                </svg>
+                <span>ใส่ลายน้ำ</span>
+                <span class="tag-dev">กำลังพัฒนา</span>
+              </button>
+              <button type="button" class="dropdown-item" data-tool-id="crop-pdf" role="menuitem">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M6 2v14a2 2 0 0 0 2 2h14"/>
+                  <path d="M18 22V8a2 2 0 0 0-2-2H2"/>
+                </svg>
+                <span>ครอบตัด PDF</span>
+                <span class="tag-dev">กำลังพัฒนา</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <div class="dropdown-header">แปลงไฟล์เอกสาร</div>
+              <button type="button" class="dropdown-item" data-tool-id="pdf-to-word" role="menuitem">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="8" y1="13" x2="16" y2="13"/>
+                  <line x1="8" y1="17" x2="16" y2="17"/>
+                </svg>
+                <span>PDF → Word</span>
+                <span class="tag-dev">กำลังพัฒนา</span>
+              </button>
+              <button type="button" class="dropdown-item" data-tool-id="pdf-to-powerpoint" role="menuitem">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <span>PDF → PowerPoint</span>
+                <span class="tag-dev">กำลังพัฒนา</span>
+              </button>
+              <button type="button" class="dropdown-item" data-tool-id="pdf-to-excel" role="menuitem">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                  <line x1="9" y1="3" x2="9" y2="21"/>
+                  <line x1="15" y1="3" x2="15" y2="21"/>
+                </svg>
+                <span>PDF → Excel</span>
+                <span class="tag-dev">กำลังพัฒนา</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Right cluster: actions + privacy -->
+      <div class="nav-right-cluster">
+        <!-- Header Actions (Visible when items > 0) -->
+        <div class="header-actions hidden" id="headerActions">
+          <span class="file-count-badge" id="fileCountBadge" aria-live="polite">0 รูป</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnAddMoreTop" aria-label="เพิ่มรูปภาพ" title="เพิ่มรูปภาพ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span class="hide-condensed">เพิ่มรูปภาพ</span>
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearAll" title="ล้างรูปภาพทั้งหมด" aria-label="ล้างรูปภาพทั้งหมด">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            <span class="hide-condensed">ล้างทั้งหมด</span>
+          </button>
+        </div>
+        
+        <!-- Privacy Pill -->
+        <div class="privacy-pill">
+          <span class="dot-live"></span>
+          <span>Local 100% • ไม่ส่งข้อมูลออก</span>
+        </div>
       </div>
     </header>
 
@@ -378,6 +524,44 @@
           </div>
         </aside>
 
+      </section>
+      
+      <!-- STATE 3: Coming Soon / Under Development Screen -->
+      <section class="coming-soon-screen hidden" id="comingSoonScreen" aria-labelledby="comingSoonTitle">
+        <div class="coming-soon-card">
+          <div class="coming-soon-badge-row">
+            <span class="badge-lab">Teacher PDF Lab</span>
+            <span class="badge-status">กำลังพัฒนา</span>
+          </div>
+          
+          <div class="coming-soon-icon-wrapper" id="comingSoonIcon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 2h11a2 2 0 0 1 2 2v11"/>
+              <rect x="3" y="7" width="13" height="13" rx="2"/>
+            </svg>
+          </div>
+
+          <h2 class="coming-soon-title" id="comingSoonTitle">รวม PDF</h2>
+          <p class="coming-soon-lead" id="comingSoonLead">เครื่องมือนี้จะพร้อมใช้งานในเร็ว ๆ นี้</p>
+          <p class="coming-soon-desc" id="comingSoonDesc">กำลังอยู่ระหว่างการพัฒนาสำหรับระบบ Teacher PDF Lab เพื่อสนับสนุนการเตรียมสื่อและเอกสารการสอนของคุณครู</p>
+
+          <div class="coming-soon-actions">
+            <button type="button" class="btn btn-primary" id="btnBackToImageToPdf">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12 19 5 12 12 5"/>
+              </svg>
+              <span>กลับสู่เครื่องมือ รูปภาพ → PDF</span>
+            </button>
+          </div>
+
+          <div class="coming-soon-footer-note">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>รูปภาพและงานที่คุณทำค้างไว้ใน "รูปภาพ → PDF" ยังคงอยู่ครบถ้วน ไม่สูญหาย</span>
+          </div>
+        </div>
       </section>
 
     </main>
