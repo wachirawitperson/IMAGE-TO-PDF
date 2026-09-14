@@ -28,55 +28,55 @@
     high: { maxDim: 3200, quality: 0.94 }
   };
 
-  // --- Teacher PDF Lab: Tool Registry ---
+  // --- PDF LAB: Tool Registry ---
   const TOOL_REGISTRY = {
     'image-to-pdf': {
       id: 'image-to-pdf',
-      name: 'รูปภาพ → PDF',
+      name: 'IMAGE → PDF',
       status: 'ready',
       desc: 'แปลงรูปภาพเป็นเอกสาร PDF ในเครื่องของคุณ 100% รวดเร็ว ปลอดภัย ไม่ส่งไฟล์ขึ้นเซิร์ฟเวอร์'
     },
     'merge-pdf': {
       id: 'merge-pdf',
       name: 'รวม PDF',
-      status: 'coming-soon',
+      status: 'ready',
       iconSvg: '<path d="M8 2h11a2 2 0 0 1 2 2v11"/><rect x="3" y="7" width="13" height="13" rx="2"/>',
-      desc: 'รวมไฟล์ PDF หลายไฟล์เข้าด้วยกันเป็นเอกสารเดียวอย่างรวดเร็ว จัดการใบงานและเอกสารประกอบการสอนได้ง่ายดาย'
+      desc: 'รวมไฟล์ PDF หลายไฟล์เข้าด้วยกันเป็นเอกสารเดียวอย่างรวดเร็ว'
     },
     'split-pdf': {
       id: 'split-pdf',
       name: 'แยก PDF',
-      status: 'coming-soon',
+      status: 'ready',
       iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="2" y1="13" x2="22" y2="13" stroke-dasharray="3 3"/>',
-      desc: 'แยกหน้าเอกสาร PDF หรือตัดเฉพาะหน้าบทเรียนที่ต้องการออกมาเป็นไฟล์ใหม่ เพื่อแจกจ่ายให้นักเรียน'
+      desc: 'เลือกหน้าที่ต้องการจาก PDF แล้วสร้างเป็นไฟล์ใหม่'
     },
     'organize-pdf': {
       id: 'organize-pdf',
       name: 'จัดหน้า PDF',
-      status: 'coming-soon',
+      status: 'ready',
       iconSvg: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
-      desc: 'จัดเรียงลำดับหน้า หมุนหน้าเอกสาร หรือลบหน้าที่ไม่ต้องการออกจากไฟล์ PDF ได้อย่างสะดวก'
+      desc: 'จัดเรียง หมุน และลบหน้า PDF ได้อย่างสะดวก'
     },
     'pdf-to-image': {
       id: 'pdf-to-image',
       name: 'PDF → รูปภาพ',
-      status: 'coming-soon',
+      status: 'ready',
       iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
-      desc: 'แปลงหน้าเอกสาร PDF ให้กลายเป็นไฟล์ภาพ JPG หรือ PNG คมชัด สำหรับนำไปแทรกในสไลด์หรือใบงาน'
+      desc: 'แปลงหน้าเอกสาร PDF เป็นไฟล์ภาพ JPG หรือ PNG คมชัด'
     },
     'page-number': {
       id: 'page-number',
       name: 'ใส่เลขหน้า',
-      status: 'coming-soon',
+      status: 'ready',
       iconSvg: '<path d="M4 19h16"/><line x1="10" y1="4" x2="8" y2="20"/><line x1="16" y1="4" x2="14" y2="20"/><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/>',
-      desc: 'เพิ่มหมายเลขหน้าลงในเอกสาร PDF ระบุตำแหน่ง แบบอักษร และรูปแบบเลขหน้าสำหรับรายงานหรือแผนการสอน'
+      desc: 'เพิ่มหมายเลขหน้าลงในเอกสาร PDF ระบุตำแหน่งและรูปแบบเลขหน้า'
     },
     'ocr-pdf': {
       id: 'ocr-pdf',
       name: 'OCR PDF',
-      status: 'coming-soon',
+      status: 'ready',
       iconSvg: '<path d="M4 7V4h3"/><path d="M20 7V4h-3"/><path d="M4 17v3h3"/><path d="M20 17v3h-3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="12" y1="9" x2="12" y2="15"/>',
-      desc: 'สแกนและแปลงข้อความในรูปภาพหรือ PDF ที่สแกนมาให้เป็นข้อความที่สามารถค้นหาและคัดลอกได้'
+      desc: 'สแกนและแปลงข้อความในรูปภาพหรือ PDF ที่สแกนมาให้เป็นข้อความที่ค้นหาและคัดลอกได้'
     },
     'watermark-pdf': {
       id: 'watermark-pdf',
@@ -541,7 +541,7 @@
     });
   }
 
-  // --- Teacher PDF Lab: Tool Switcher ---
+  // --- PDF LAB: Tool Switcher ---
   function switchTool(toolId) {
     if (!TOOL_REGISTRY[toolId]) return;
     state.activeTool = toolId;
@@ -571,15 +571,21 @@
 
     closeMoreToolsDropdown();
 
+    const tool = TOOL_REGISTRY[toolId];
     if (toolId === 'image-to-pdf') {
-      document.title = 'IMAGE → PDF | แปลงรูปภาพเป็น PDF บนเบราว์เซอร์';
+      document.title = 'IMAGE → PDF | PDF LAB';
     } else {
-      const tool = TOOL_REGISTRY[toolId];
-      document.title = `${tool.name} | Teacher PDF Lab`;
-      renderComingSoon(tool);
+      document.title = `${tool.name} | PDF LAB`;
+      if (tool.status === 'coming-soon') {
+        renderComingSoon(tool);
+      }
     }
 
     syncUI();
+
+    if (window.PdfLabTools && typeof window.PdfLabTools.onSwitchTool === 'function') {
+      window.PdfLabTools.onSwitchTool(toolId);
+    }
   }
 
   function closeMoreToolsDropdown() {
@@ -609,33 +615,66 @@
 
   // --- UI Synchronization ---
   function syncUI() {
-    // When viewing another tool in Teacher PDF Lab
-    if (state.activeTool !== 'image-to-pdf') {
-      el.uploadScreen.classList.add('hidden');
-      el.workspaceScreen.classList.add('hidden');
-      if (el.comingSoonScreen) el.comingSoonScreen.classList.remove('hidden');
-      el.headerActions.classList.add('hidden');
+    // Hide all other tool views first
+    const allToolViews = [
+      'toolMergePdf',
+      'toolSplitPdf',
+      'toolOrganizePdf',
+      'toolPdfToImage',
+      'toolPageNumber',
+      'toolOcrPdf'
+    ];
+    allToolViews.forEach(id => {
+      const elView = document.getElementById(id);
+      if (elView) elView.classList.add('hidden');
+    });
+
+    // When viewing IMAGE -> PDF
+    if (state.activeTool === 'image-to-pdf') {
+      if (el.comingSoonScreen) el.comingSoonScreen.classList.add('hidden');
+      const count = state.items.length;
+
+      if (count === 0) {
+        el.uploadScreen.classList.remove('hidden');
+        el.workspaceScreen.classList.add('hidden');
+        el.headerActions.classList.add('hidden');
+        el.thumbnailGrid.innerHTML = '';
+        el.fileInput.value = '';
+      } else {
+        el.uploadScreen.classList.add('hidden');
+        el.workspaceScreen.classList.remove('hidden');
+        el.headerActions.classList.remove('hidden');
+        renderThumbnails(true);
+      }
+
+      updateCountBadge();
       return;
     }
 
-    // When viewing IMAGE -> PDF
-    if (el.comingSoonScreen) el.comingSoonScreen.classList.add('hidden');
-    const count = state.items.length;
+    // When viewing another tool: hide image-to-pdf screens
+    el.uploadScreen.classList.add('hidden');
+    el.workspaceScreen.classList.add('hidden');
+    el.headerActions.classList.add('hidden');
 
-    if (count === 0) {
-      el.uploadScreen.classList.remove('hidden');
-      el.workspaceScreen.classList.add('hidden');
-      el.headerActions.classList.add('hidden');
-      el.thumbnailGrid.innerHTML = '';
-      el.fileInput.value = '';
+    const tool = TOOL_REGISTRY[state.activeTool];
+    if (tool && tool.status === 'ready') {
+      if (el.comingSoonScreen) el.comingSoonScreen.classList.add('hidden');
+      const targetViewMap = {
+        'merge-pdf': 'toolMergePdf',
+        'split-pdf': 'toolSplitPdf',
+        'organize-pdf': 'toolOrganizePdf',
+        'pdf-to-image': 'toolPdfToImage',
+        'page-number': 'toolPageNumber',
+        'ocr-pdf': 'toolOcrPdf'
+      };
+      const viewId = targetViewMap[state.activeTool];
+      if (viewId) {
+        const targetEl = document.getElementById(viewId);
+        if (targetEl) targetEl.classList.remove('hidden');
+      }
     } else {
-      el.uploadScreen.classList.add('hidden');
-      el.workspaceScreen.classList.remove('hidden');
-      el.headerActions.classList.remove('hidden');
-      renderThumbnails(true);
+      if (el.comingSoonScreen) el.comingSoonScreen.classList.remove('hidden');
     }
-
-    updateCountBadge();
   }
 
   function updateCountBadge() {
@@ -1150,7 +1189,16 @@
     generatePdf,
     sanitizeFilename,
     calculatePageDimensions,
-    calculateImageDrawRect
+    calculateImageDrawRect,
+    switchTool,
+    syncUI,
+    showToast,
+    downloadBlob,
+    showProgressModal,
+    hideProgressModal,
+    updateProgress,
+    formatFileSize,
+    escapeHtml
   };
 
   // Start app on DOM ready

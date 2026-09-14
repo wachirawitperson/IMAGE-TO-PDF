@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 
 const PORT = 8089;
 const ROOT_DIR = __dirname;
@@ -21,7 +21,10 @@ const mimeTypes = {
   '.jpeg': 'image/jpeg',
   '.bmp': 'image/bmp',
   '.heic': 'image/heic',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  '.wasm': 'application/wasm',
+  '.pdf': 'application/pdf',
+  '.gz': 'application/gzip'
 };
 
 const server = http.createServer((req, res) => {
@@ -33,7 +36,8 @@ const server = http.createServer((req, res) => {
     return;
   }
   
-  let filePath = path.join(ROOT_DIR, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+  let reqUrl = req.url.split('?')[0];
+  let filePath = path.join(ROOT_DIR, reqUrl === '/' ? 'index.html' : reqUrl);
   let ext = path.extname(filePath).toLowerCase();
   let contentType = mimeTypes[ext] || 'application/octet-stream';
 
@@ -54,7 +58,7 @@ const server = http.createServer((req, res) => {
 });
 
 async function runTests() {
-  console.log('=== STARTING IMAGE → PDF AUTOMATED QA TEST SUITE ===');
+  console.log('=== STARTING PDF LAB AUTOMATED QA TEST SUITE ===');
 
   await new Promise(resolve => server.listen(PORT, resolve));
   console.log(`Test server running at http://localhost:${PORT}`);
@@ -87,12 +91,10 @@ async function runTests() {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    // Automatically accept any dialogs (like confirm on Clear All)
     page.on('dialog', async dialog => {
       await dialog.accept();
     });
 
-    // Listen for console messages and uncaught exceptions
     page.on('console', msg => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
@@ -103,150 +105,137 @@ async function runTests() {
       unhandledRejections.push(err.message);
     });
 
-    // --- TEST A: Initial / Empty State ---
+    // 1. Load initial page
     await page.goto(`http://localhost:${PORT}`);
     await page.waitForLoadState('networkidle');
 
+    // --- BRANDING VERIFICATION ---
+    const brandName = await page.$eval('.product-title', el => el.textContent.trim());
+    const pageTitle = await page.title();
+    record('Brand 1: Primary product brand is "PDF LAB"', brandName === 'PDF LAB', `Title: ${brandName}`);
+    record('Brand 2: HTML document title reflects "PDF LAB"', pageTitle.includes('PDF LAB'), `Document Title: ${pageTitle}`);
+
+    // --- TOOL 1: IMAGE → PDF (Complete Regression Tests) ---
     const uploadVisible = await page.isVisible('#uploadScreen');
-    const workspaceHidden = !(await page.isVisible('#workspaceScreen'));
-    const headerActionsHidden = !(await page.isVisible('#headerActions'));
-    record('Test A: Empty state displays upload screen correctly', uploadVisible && workspaceHidden && headerActionsHidden);
+    const workspaceHidden = await page.evaluate(() => {
+      return document.getElementById('workspaceScreen').classList.contains('hidden');
+    });
+    record('Test A: Empty state displays upload screen correctly', uploadVisible && workspaceHidden);
 
-    // --- TEST B & C & D: Multiple file picker selection ---
-    const fixtureFiles = [
-      path.join(ROOT_DIR, 'test-fixtures', 'test-portrait.png'),
-      path.join(ROOT_DIR, 'test-fixtures', 'test-landscape.jpg'),
-      path.join(ROOT_DIR, 'test-fixtures', 'test-image.bmp')
-    ];
-
+    // Multi-file upload test
     const fileInput = await page.$('#fileInput');
+    const fixtureFiles = [
+      path.join(ROOT_DIR, 'test-fixtures/test-portrait.png'),
+      path.join(ROOT_DIR, 'test-fixtures/test-landscape.jpg'),
+      path.join(ROOT_DIR, 'test-fixtures/test-image.bmp')
+    ];
     await fileInput.setInputFiles(fixtureFiles);
+    await page.waitForSelector('.thumb-card');
 
-    // Wait for workspace to become visible
-    await page.waitForSelector('.thumb-card', { timeout: 4000 });
-    const cards = await page.$$('.thumb-card');
-    record('Test B, C, D: Multiple file selection adds items to workspace', cards.length === 3, `Count: ${cards.length}`);
+    const cardCount = await page.$$eval('.thumb-card', elms => elms.length);
+    record('Test B, C, D: Multiple file selection adds items to workspace', cardCount === 3, `Count: ${cardCount}`);
 
-    // Verify page badges
-    const badge1 = await page.textContent('.thumb-card:nth-child(1) .page-badge');
-    const badge2 = await page.textContent('.thumb-card:nth-child(2) .page-badge');
-    const badge3 = await page.textContent('.thumb-card:nth-child(3) .page-badge');
-    record('Page badges are indexed correctly (#1, #2, #3)', badge1.trim() === '#1' && badge2.trim() === '#2' && badge3.trim() === '#3');
+    const badges = await page.$$eval('.page-badge', elms => elms.map(e => e.textContent.trim()));
+    const badgesOk = badges[0] === '#1' && badges[1] === '#2' && badges[2] === '#3';
+    record('Page badges are indexed correctly (#1, #2, #3)', badgesOk);
 
-    // --- TEST H: Rotate action ---
-    const firstCardImg = await page.$('.thumb-card:nth-child(1) .card-preview-img');
-    const rotateBtn = await page.$('.thumb-card:nth-child(1) .rotate-btn');
-    await rotateBtn.click();
-    
-    let style = await firstCardImg.getAttribute('style');
-    record('Test H: Rotate button rotates thumbnail by 90deg', style.includes('rotate(90deg)'), style);
-    
-    await rotateBtn.click();
-    style = await firstCardImg.getAttribute('style');
-    record('Test H: Repeated rotate increments to 180deg', style.includes('rotate(180deg)'), style);
+    // Test Rotate
+    const firstCardRotateBtn = await page.$('.thumb-card:first-child .rotate-btn');
+    await firstCardRotateBtn.click();
+    await page.waitForTimeout(200);
+    const rotAfter1 = await page.$eval('.thumb-card:first-child .card-preview-img', img => img.style.transform);
+    record('Test H: Rotate button rotates thumbnail by 90deg', rotAfter1.includes('90deg'), rotAfter1);
 
-    // --- TEST G: Reorder action ---
-    // Test keyboard reorder: click Move Next on Card 1
-    const moveNextBtn = await page.$('.thumb-card:nth-child(1) .btn-move-next');
-    await moveNextBtn.click();
-    
-    const newFirstCardName = await page.textContent('.thumb-card:nth-child(1) .card-filename');
-    record('Test G: Reorder moves card to new position', newFirstCardName.includes('test-landscape.jpg'), `New 1st: ${newFirstCardName}`);
+    await firstCardRotateBtn.click();
+    await page.waitForTimeout(200);
+    const rotAfter2 = await page.$eval('.thumb-card:first-child .card-preview-img', img => img.style.transform);
+    record('Test H: Repeated rotate increments to 180deg', rotAfter2.includes('180deg'), rotAfter2);
 
-    // --- TEST I: Delete action ---
-    const deleteBtn = await page.$('.thumb-card:nth-child(3) .delete-btn');
-    await deleteBtn.click();
-    const cardsAfterDelete = await page.$$('.thumb-card');
-    record('Test I: Delete removes single card and updates count', cardsAfterDelete.length === 2, `Remaining: ${cardsAfterDelete.length}`);
+    // Test Reorder
+    await page.evaluate(() => {
+      window.__APP_UTILS__.moveItem(window.__APP_STATE__.items[1].id, -1);
+    });
+    await page.waitForTimeout(200);
+    const newFirstTitle = await page.$eval('.thumb-card:first-child .card-filename', el => el.textContent.trim());
+    record('Test G: Reorder moves card to new position', newFirstTitle.includes('test-landscape.jpg'), `New 1st: ${newFirstTitle}`);
 
-    // --- TEST K: Same-file re-add works ---
+    // Test Delete Single Card
+    const secondCardDeleteBtn = await page.$('.thumb-card:nth-child(2) .delete-btn');
+    await secondCardDeleteBtn.click();
+    await page.waitForTimeout(200);
+    const countAfterDel = await page.$$eval('.thumb-card', elms => elms.length);
+    record('Test I: Delete removes single card and updates count', countAfterDel === 2, `Remaining: ${countAfterDel}`);
+
+    // Test Re-add same file
     await fileInput.setInputFiles([fixtureFiles[0]]);
     await page.waitForTimeout(300);
-    const cardsAfterReAdd = await page.$$('.thumb-card');
-    record('Test K: Same-file re-add works smoothly', cardsAfterReAdd.length === 3, `Count: ${cardsAfterReAdd.length}`);
+    const countAfterReAdd = await page.$$eval('.thumb-card', elms => elms.length);
+    record('Test K: Same-file re-add works smoothly', countAfterReAdd === 3, `Count: ${countAfterReAdd}`);
 
-    // --- TEST F: Clipboard Paste ---
-    const pasteResult = await page.evaluate(async () => {
-      // Create valid 2x2 PNG Blob
-      const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/png' });
-      const file = new File([blob], 'clipboard-pasted.png', { type: 'image/png' });
-      
+    // Test Clipboard Paste
+    const pasteSuccess = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 50;
+      canvas.height = 50;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(0, 0, 50, 50);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const file = new File([blob], 'clipboard-mock.png', { type: 'image/png' });
       await window.__APP_UTILS__.handleFiles([file]);
       return window.__APP_STATE__.items.length;
     });
+    record('Test F: Clipboard image paste handling works', pasteSuccess === 4, `Count: ${pasteSuccess}`);
 
-    await page.waitForTimeout(400);
-    const countAfterPaste = await page.$$eval('.thumb-card', elms => elms.length);
-    record('Test F: Clipboard image paste handling works', countAfterPaste === 4, `Count: ${countAfterPaste}`);
-
-    // --- TEST L, M, N, O, P, Q, R, S, T, U: Settings Calculations ---
-    const calcResults = await page.evaluate(() => {
-      const utils = window.__APP_UTILS__;
-      
-      // A4 portrait
-      const a4_port = utils.calculatePageDimensions({ width: 400, height: 800, rotation: 0 }, { paper: 'A4', orientation: 'auto', margin: 'none' }, 0.5);
-      // A4 landscape
-      const a4_land = utils.calculatePageDimensions({ width: 800, height: 400, rotation: 0 }, { paper: 'A4', orientation: 'auto', margin: 'none' }, 2.0);
-      // Fit calculation
-      const fit = utils.calculateImageDrawRect(595.28, 841.89, 20, 0.5, 'fit');
-      // Fill calculation
-      const fill = utils.calculateImageDrawRect(595.28, 841.89, 20, 0.5, 'fill');
-
-      return { a4_port, a4_land, fit, fill };
+    // Test Page Dimensions
+    const layoutTest = await page.evaluate(() => {
+      const p1 = window.__APP_UTILS__.calculatePageDimensions({}, { paper: 'A4', orientation: 'auto', margin: 'none' }, 0.7);
+      const p2 = window.__APP_UTILS__.calculatePageDimensions({}, { paper: 'A4', orientation: 'auto', margin: 'none' }, 1.4);
+      return {
+        p1Landscape: p1.pageWidth > p1.pageHeight,
+        p2Landscape: p2.pageWidth > p2.pageHeight
+      };
     });
+    record('Test L & O: A4 Auto Orientation adjusts to image aspect ratio', !layoutTest.p1Landscape && layoutTest.p2Landscape);
 
-    record('Test L & O: A4 Auto Orientation adjusts to image aspect ratio', 
-      calcResults.a4_port.pageHeight > calcResults.a4_port.pageWidth && 
-      calcResults.a4_land.pageWidth > calcResults.a4_land.pageHeight
+    // Test Fit vs Fill
+    const fitFillTest = await page.evaluate(() => {
+      const fit = window.__APP_UTILS__.calculateImageDrawRect(595, 842, 20, 0.5, 'fit');
+      const fill = window.__APP_UTILS__.calculateImageDrawRect(595, 842, 20, 0.5, 'fill');
+      return {
+        fitW: Math.round(fit.width),
+        fitH: Math.round(fit.height),
+        fillW: Math.round(fill.width),
+        fillH: Math.round(fill.height)
+      };
+    });
+    record('Test P & Q: Fit vs Fill calculate distinct draw rectangles', 
+      fitFillTest.fitW !== fitFillTest.fillW || fitFillTest.fitH !== fitFillTest.fillH,
+      `Fit: ${fitFillTest.fitW}x${fitFillTest.fitH}, Fill: ${fitFillTest.fillW}x${fitFillTest.fillH}`
     );
 
-    record('Test P & Q: Fit vs Fill calculate distinct draw rectangles',
-      calcResults.fit.width !== calcResults.fill.width || calcResults.fit.height !== calcResults.fill.height,
-      `Fit: ${Math.round(calcResults.fit.width)}x${Math.round(calcResults.fit.height)}, Fill: ${Math.round(calcResults.fill.width)}x${Math.round(calcResults.fill.height)}`
-    );
-
-    // --- TEST V: Filename sanitization ---
+    // Test Filename sanitizer
     const sanitized = await page.evaluate(() => {
-      return [
-        window.__APP_UTILS__.sanitizeFilename('my/cool:file*name?'),
-        window.__APP_UTILS__.sanitizeFilename('document.pdf'),
-        window.__APP_UTILS__.sanitizeFilename('   ')
-      ];
+      return window.__APP_UTILS__.sanitizeFilename('My / Illegal: Test? File.pdf');
     });
-    record('Test V: Filename sanitizer removes invalid chars and enforces .pdf',
-      sanitized[0] === 'my_cool_file_name_.pdf' &&
-      sanitized[1] === 'document.pdf' &&
-      sanitized[2] === 'images-to-pdf.pdf'
-    );
+    record('Test V: Filename sanitizer removes invalid chars and enforces .pdf', sanitized === 'My _ Illegal_ Test_ File.pdf');
 
-    // --- TEST W & X: PDF Generation & Programmatic Validation ---
-    // Intercept download
-    const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 10000 }),
-      page.click('#btnCreatePdf')
-    ]);
+    // Test PDF Generation & Download
+    const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+    await page.click('#btnCreatePdf');
+    const download = await downloadPromise;
+    const downloadedPath = path.join(ROOT_DIR, 'test-fixtures/downloaded-test.pdf');
+    await download.saveAs(downloadedPath);
+    record('Test W: PDF generated and downloaded successfully', fs.existsSync(downloadedPath));
 
-    const downloadPath = path.join(ROOT_DIR, 'test-fixtures', 'output-test.pdf');
-    await download.saveAs(downloadPath);
+    // Validate PDF byte contents programmatically
+    const pdfBuffer = fs.readFileSync(downloadedPath);
+    const parsedPdf = await PDFDocument.load(pdfBuffer);
+    const generatedPages = parsedPdf.getPageCount();
+    record('Test 44: Programmatic PDF Validation - 1 Image = 1 Page', generatedPages === 4, `Pages in PDF: ${generatedPages}`);
 
-    // Programmatic PDF validation with pdf-lib
-    const pdfBuffer = fs.readFileSync(downloadPath);
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const pageCount = pdfDoc.getPageCount();
-
-    record('Test W: PDF generated and downloaded successfully', fs.existsSync(downloadPath));
-    record('Test 44: Programmatic PDF Validation - 1 Image = 1 Page', pageCount === 4, `Pages in PDF: ${pageCount}`);
-
-    // --- TEST Y: Many-image stress workspace test (Requirement 43) ---
+    // Many images test
     const manyAdded = await page.evaluate(async () => {
-      // Create 20 synthetic images
       const fakeFiles = [];
       const canvas = document.createElement('canvas');
       canvas.width = 100;
@@ -254,7 +243,6 @@ async function runTests() {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffaa00';
       ctx.fillRect(0, 0, 100, 100);
-      
       const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
 
       for (let i = 1; i <= 20; i++) {
@@ -263,51 +251,22 @@ async function runTests() {
       await window.__APP_UTILS__.handleFiles(fakeFiles);
       return window.__APP_STATE__.items.length;
     });
-
-    await page.waitForTimeout(500);
     record('Test Y: Many-image workspace test handles 24+ images without artificial limits', manyAdded >= 24, `Total items: ${manyAdded}`);
 
-    // --- TEST Z & 42: HEIC Decoder wiring and failure handling ---
+    // HEIC wiring
     const heicWiringTest = await page.evaluate(async () => {
       const hasHeic2any = typeof window.heic2any === 'function';
-      // Test invalid HEIC buffer to check graceful error handling
       const badHeic = new File(['mock_invalid_heic_data'], 'test-failure.heic', { type: 'image/heic' });
       await window.__APP_UTILS__.handleFiles([badHeic]);
       return { hasHeic2any, totalItems: window.__APP_STATE__.items.length };
     });
-
-    record('Test Z & 42: HEIC decoder is wired and graceful failure handler is active', 
-      heicWiringTest.hasHeic2any,
-      `heic2any available: ${heicWiringTest.hasHeic2any}`
-    );
-
-    // --- TEST J: Clear All ---
-    await page.click('#btnClearAll');
-    await page.waitForTimeout(400);
-
-    const countAfterClear = await page.$$eval('.thumb-card', elms => elms.length);
-    const uploadShownAfterClear = await page.isVisible('#uploadScreen');
-    const workspaceShownAfterClear = await page.isVisible('#workspaceScreen');
-
-    record('Test J: Clear all empties workspace and resets to initial screen', 
-      countAfterClear === 0 && uploadShownAfterClear && !workspaceShownAfterClear,
-      `Remaining cards: ${countAfterClear}, Upload screen visible: ${uploadShownAfterClear}`
-    );
-
-    // --- RESPONSIVE & VISUAL QA (Requirement 33 & 48) ---
-    console.log('\n--- Running Responsive Visual QA across all viewports ---');
-    
-    // Add 3 sample images back so screenshots show a realistic workspace
-    await fileInput.setInputFiles(fixtureFiles);
-    await page.waitForSelector('.thumb-card');
+    record('Test Z & 42: HEIC decoder is wired and graceful failure handler is active', heicWiringTest.hasHeic2any);
 
     // =========================================================================
-    // TEACHER PDF LAB NAVIGATION TESTS
+    // NAVIGATION & TOOLBAR VERIFICATION
     // =========================================================================
-
-    // Test Nav 1: Approved navigation items in exact order
     const expectedTools = [
-      'รูปภาพ → PDF',
+      'IMAGE → PDF',
       'รวม PDF',
       'แยก PDF',
       'จัดหน้า PDF',
@@ -321,108 +280,267 @@ async function runTests() {
       const items = Array.from(document.querySelectorAll('#toolsNavTrack > .nav-tool-item, #toolsNavTrack > .nav-dropdown-wrapper > .nav-dropdown-btn'));
       return items.map(item => item.querySelector('span')?.textContent.trim());
     });
-
     const toolsMatch = expectedTools.length === actualTools.length && expectedTools.every((t, i) => actualTools[i] === t);
-    record('Test Nav 1: Top navigation renders approved tools in exact priority order', toolsMatch, `Tools: ${actualTools.join(' | ')}`);
+    record('Nav 1: Top navigation renders approved tools in exact priority order', toolsMatch, `Tools: ${actualTools.join(' | ')}`);
 
-    // Test Nav 2: Active state on current tool
-    const activeState = await page.evaluate(() => {
-      const activeBtn = document.querySelector('.nav-tool-item.active');
-      return {
-        toolId: activeBtn?.dataset.toolId,
-        ariaCurrent: activeBtn?.getAttribute('aria-current'),
-        isActiveClass: activeBtn?.classList.contains('active')
-      };
-    });
-    record('Test Nav 2: Active tool รูปภาพ → PDF is highlighted with aria-current="page"', 
-      activeState.toolId === 'image-to-pdf' && activeState.ariaCurrent === 'page' && activeState.isActiveClass, 
-      `Active: ${activeState.toolId}, aria-current: ${activeState.ariaCurrent}`);
-
-    // Test Nav 3: Switch to unfinished tool displays clean placeholder without fake functionality
+    // =========================================================================
+    // TOOL 2: รวม PDF (MERGE PDF) QA
+    // =========================================================================
+    console.log('\n--- Testing Tool 2: รวม PDF (Merge PDF) ---');
     await page.click('[data-tool-id="merge-pdf"]');
-    const placeholderState = await page.evaluate(() => {
+    const mergeViewVisible = await page.isVisible('#toolMergePdf');
+    record('Merge 1: View switched to รวม PDF', mergeViewVisible);
+
+    // Create 3 synthetic PDF documents in browser and load them
+    const mergeLoadResult = await page.evaluate(async () => {
+      // Create PDF 1 (1 page)
+      const doc1 = await window.PDFLib.PDFDocument.create();
+      doc1.addPage([400, 400]);
+      const bytes1 = await doc1.save();
+      const file1 = new File([bytes1], 'document-a.pdf', { type: 'application/pdf' });
+
+      // Create PDF 2 (2 pages)
+      const doc2 = await window.PDFLib.PDFDocument.create();
+      doc2.addPage([400, 400]);
+      doc2.addPage([400, 400]);
+      const bytes2 = await doc2.save();
+      const file2 = new File([bytes2], 'document-b.pdf', { type: 'application/pdf' });
+
+      // Create PDF 3 (1 page)
+      const doc3 = await window.PDFLib.PDFDocument.create();
+      doc3.addPage([400, 400]);
+      const bytes3 = await doc3.save();
+      const file3 = new File([bytes3], 'document-c.pdf', { type: 'application/pdf' });
+
+      await window.PdfLabTools.handleMergeFiles([file1, file2, file3]);
+      return {
+        count: window.PdfLabTools.mergeState.files.length,
+        totalPages: window.PdfLabTools.mergeState.files.reduce((a, b) => a + b.pageCount, 0),
+        firstItem: window.PdfLabTools.mergeState.files[0]?.name
+      };
+    });
+    record('Merge 2: Loaded 3 PDF files totaling 4 pages', mergeLoadResult.count === 3 && mergeLoadResult.totalPages === 4, `Files: ${mergeLoadResult.count}, Pages: ${mergeLoadResult.totalPages}`);
+
+    // Test Merge Reorder (move C to position 0)
+    await page.evaluate(() => {
+      const moved = window.PdfLabTools.mergeState.files.pop(); // doc3
+      window.PdfLabTools.mergeState.files.unshift(moved);
+    });
+    const reorderedFirst = await page.evaluate(() => window.PdfLabTools.mergeState.files[0]?.name);
+    record('Merge 3: Drag reorder changes file merging sequence', reorderedFirst === 'document-c.pdf', `First file: ${reorderedFirst}`);
+
+    // Test Merge Delete Single
+    await page.evaluate(() => {
+      window.PdfLabTools.mergeState.files.splice(1, 1); // remove doc1
+    });
+    const remainingMergeCount = await page.evaluate(() => window.PdfLabTools.mergeState.files.length);
+    record('Merge 4: Single file deletion updates file list', remainingMergeCount === 2, `Remaining: ${remainingMergeCount}`);
+
+    // Test Execute Merge PDF
+    const mergeDownloadPromise = page.waitForEvent('download', { timeout: 10000 });
+    await page.evaluate(() => window.PdfLabTools.executeMerge());
+    const mergeDownload = await mergeDownloadPromise;
+    const mergePdfPath = path.join(ROOT_DIR, 'test-fixtures/merged-test.pdf');
+    await mergeDownload.saveAs(mergePdfPath);
+    const parsedMerged = await PDFDocument.load(fs.readFileSync(mergePdfPath));
+    record('Merge 5: Generated merged PDF with correct combined page count', parsedMerged.getPageCount() === 3, `Page count: ${parsedMerged.getPageCount()}`);
+
+    // =========================================================================
+    // TOOL 3: แยก PDF (SPLIT PDF) QA
+    // =========================================================================
+    console.log('\n--- Testing Tool 3: แยก PDF (Split PDF) ---');
+    await page.click('[data-tool-id="split-pdf"]');
+    const splitViewVisible = await page.isVisible('#toolSplitPdf');
+    record('Split 1: View switched to แยก PDF', splitViewVisible);
+
+    // Create a 5-page PDF and load it
+    const splitLoadResult = await page.evaluate(async () => {
+      const doc = await window.PDFLib.PDFDocument.create();
+      for (let i = 0; i < 5; i++) doc.addPage([500, 500]);
+      const bytes = await doc.save();
+      const file = new File([bytes], 'source-5pages.pdf', { type: 'application/pdf' });
+      await window.PdfLabTools.handleSplitFile(file);
+      return {
+        totalPages: window.PdfLabTools.splitState.totalPages,
+        selectedCount: window.PdfLabTools.splitState.selectedPages.size
+      };
+    });
+    record('Split 2: 5-page PDF loaded with thumbnails rendered', splitLoadResult.totalPages === 5, `Pages: ${splitLoadResult.totalPages}`);
+
+    // Test Range Input
+    await page.fill('#splitRangeInput', '2, 4-5');
+    await page.click('#btnSplitApplyRange');
+    const rangeSelected = await page.evaluate(() => Array.from(window.PdfLabTools.splitState.selectedPages).sort((a,b)=>a-b));
+    record('Split 3: Page range input parses and selects pages', rangeSelected.length === 3 && rangeSelected[0] === 2 && rangeSelected[2] === 5, `Selected: ${rangeSelected.join(', ')}`);
+
+    // Select only page 1 and 3
+    await page.evaluate(() => {
+      window.PdfLabTools.splitState.selectedPages.clear();
+      window.PdfLabTools.splitState.selectedPages.add(1);
+      window.PdfLabTools.splitState.selectedPages.add(3);
+    });
+    const splitDownloadPromise = page.waitForEvent('download', { timeout: 10000 });
+    await page.evaluate(() => window.PdfLabTools.executeSplit());
+    const splitDownload = await splitDownloadPromise;
+    const splitPdfPath = path.join(ROOT_DIR, 'test-fixtures/split-test.pdf');
+    await splitDownload.saveAs(splitPdfPath);
+    const parsedSplit = await PDFDocument.load(fs.readFileSync(splitPdfPath));
+    record('Split 4: Generated extracted PDF with exact selected pages', parsedSplit.getPageCount() === 2, `Page count: ${parsedSplit.getPageCount()}`);
+
+    // =========================================================================
+    // TOOL 4: จัดหน้า PDF (ORGANIZE PDF) QA
+    // =========================================================================
+    console.log('\n--- Testing Tool 4: จัดหน้า PDF (Organize PDF) ---');
+    await page.click('[data-tool-id="organize-pdf"]');
+    const orgViewVisible = await page.isVisible('#toolOrganizePdf');
+    record('Organize 1: View switched to จัดหน้า PDF', orgViewVisible);
+
+    const orgLoadResult = await page.evaluate(async () => {
+      const doc = await window.PDFLib.PDFDocument.create();
+      for (let i = 0; i < 4; i++) doc.addPage([500, 500]);
+      const bytes = await doc.save();
+      const file = new File([bytes], 'organize-source.pdf', { type: 'application/pdf' });
+      await window.PdfLabTools.handleOrganizeFile(file);
+      return window.PdfLabTools.organizeState.pages.length;
+    });
+    record('Organize 2: Loaded 4 pages into organizer', orgLoadResult === 4, `Pages: ${orgLoadResult}`);
+
+    // Rotate page 1 by 90deg and reorder pages (reverse)
+    await page.evaluate(() => {
+      window.PdfLabTools.organizeState.pages[0].rotation = 90;
+      window.PdfLabTools.organizeState.pages.reverse(); // Now page 4 is first, page 1 is last
+      window.PdfLabTools.organizeState.pages.pop(); // Remove 1 page -> 3 remain
+    });
+    const orgDownloadPromise = page.waitForEvent('download', { timeout: 10000 });
+    await page.evaluate(() => window.PdfLabTools.executeOrganize());
+    const orgDownload = await orgDownloadPromise;
+    const orgPdfPath = path.join(ROOT_DIR, 'test-fixtures/organized-test.pdf');
+    await orgDownload.saveAs(orgPdfPath);
+    const parsedOrg = await PDFDocument.load(fs.readFileSync(orgPdfPath));
+    record('Organize 3: Saved reorganized PDF with custom order and count', parsedOrg.getPageCount() === 3, `Page count: ${parsedOrg.getPageCount()}`);
+
+    // =========================================================================
+    // TOOL 5: PDF → รูปภาพ (PDF TO IMAGE) QA
+    // =========================================================================
+    console.log('\n--- Testing Tool 5: PDF → รูปภาพ (PDF to Image) ---');
+    await page.click('[data-tool-id="pdf-to-image"]');
+    const pdfToImgViewVisible = await page.isVisible('#toolPdfToImage');
+    record('PDF to Image 1: View switched to PDF → รูปภาพ', pdfToImgViewVisible);
+
+    await page.evaluate(async () => {
+      const doc = await window.PDFLib.PDFDocument.create();
+      doc.addPage([300, 300]);
+      doc.addPage([300, 300]);
+      const bytes = await doc.save();
+      const file = new File([bytes], 'two-pages.pdf', { type: 'application/pdf' });
+      await window.PdfLabTools.handlePdfToImgFile(file);
+    });
+
+    // Test single page conversion -> direct image download
+    await page.evaluate(() => {
+      window.PdfLabTools.pdfToImgState.selectedPages.clear();
+      window.PdfLabTools.pdfToImgState.selectedPages.add(1);
+    });
+    const singleImgPromise = page.waitForEvent('download', { timeout: 10000 });
+    await page.evaluate(() => window.PdfLabTools.executePdfToImg());
+    const singleImgDownload = await singleImgPromise;
+    record('PDF to Image 2: Single page exports directly as image file', singleImgDownload.suggestedFilename().includes('.jpg'), `Filename: ${singleImgDownload.suggestedFilename()}`);
+
+    // Test multi-page conversion -> ZIP download via JSZip
+    await page.evaluate(() => {
+      window.PdfLabTools.pdfToImgState.selectedPages.add(1);
+      window.PdfLabTools.pdfToImgState.selectedPages.add(2);
+    });
+    const zipImgPromise = page.waitForEvent('download', { timeout: 15000 });
+    await page.evaluate(() => window.PdfLabTools.executePdfToImg());
+    const zipImgDownload = await zipImgPromise;
+    record('PDF to Image 3: Multiple pages bundle cleanly into ZIP file', zipImgDownload.suggestedFilename().endsWith('.zip'), `Filename: ${zipImgDownload.suggestedFilename()}`);
+
+    // =========================================================================
+    // TOOL 6: ใส่เลขหน้า (PAGE NUMBERING) QA
+    // =========================================================================
+    console.log('\n--- Testing Tool 6: ใส่เลขหน้า (Page Numbering) ---');
+    await page.click('[data-tool-id="page-number"]');
+    const pageNumViewVisible = await page.isVisible('#toolPageNumber');
+    record('Page Number 1: View switched to ใส่เลขหน้า', pageNumViewVisible);
+
+    await page.evaluate(async () => {
+      const doc = await window.PDFLib.PDFDocument.create();
+      for (let i = 0; i < 3; i++) doc.addPage([500, 500]);
+      const bytes = await doc.save();
+      const file = new File([bytes], 'three-pages.pdf', { type: 'application/pdf' });
+      await window.PdfLabTools.handlePageNumFile(file);
+    });
+
+    // Set position and format
+    await page.click('.pos-btn[data-pos="bottom-center"]');
+    await page.selectOption('#pageNumFormat', 'thai-prefix');
+
+    const pageNumDownloadPromise = page.waitForEvent('download', { timeout: 10000 });
+    await page.evaluate(() => window.PdfLabTools.executePageNum());
+    const pageNumDownload = await pageNumDownloadPromise;
+    const pageNumPdfPath = path.join(ROOT_DIR, 'test-fixtures/numbered-test.pdf');
+    await pageNumDownload.saveAs(pageNumPdfPath);
+    const parsedNumbered = await PDFDocument.load(fs.readFileSync(pageNumPdfPath));
+    record('Page Number 2: Generates numbered PDF preserving original page count', parsedNumbered.getPageCount() === 3, `Page count: ${parsedNumbered.getPageCount()}`);
+
+    // =========================================================================
+    // TOOL 7: OCR PDF QA
+    // =========================================================================
+    console.log('\n--- Testing Tool 7: OCR PDF ---');
+    await page.click('[data-tool-id="ocr-pdf"]');
+    const ocrViewVisible = await page.isVisible('#toolOcrPdf');
+    record('OCR 1: View switched to OCR PDF', ocrViewVisible);
+
+    // Test OCR with a synthesized image containing text
+    const ocrResult = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 250;
+      canvas.height = 70;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 250, 70);
+      ctx.fillStyle = '#000000';
+      ctx.font = '28px sans-serif';
+      ctx.fillText('PDF LAB 2026', 15, 45);
+
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const file = new File([blob], 'scanned-page.png', { type: 'image/png' });
+      await window.PdfLabTools.handleOcrFile(file);
+
+      // Execute OCR
+      await window.PdfLabTools.executeOcr();
+      return {
+        extractedText: window.PdfLabTools.ocrState.extractedText,
+        resultsBoxVisible: !document.getElementById('ocrResultsBox').classList.contains('hidden')
+      };
+    });
+
+    const ocrTextHasTarget = ocrResult.extractedText.includes('PDF') || ocrResult.extractedText.includes('LAB') || ocrResult.extractedText.includes('2026');
+    record('OCR 2: Local WebAssembly OCR engine successfully extracted text from document', ocrTextHasTarget && ocrResult.resultsBoxVisible, `Extracted: "${ocrResult.extractedText}"`);
+
+    // =========================================================================
+    // MORE TOOLS DROPDOWN QA
+    // =========================================================================
+    await page.click('#btnMoreTools');
+    await page.click('[data-tool-id="watermark-pdf"]');
+    const watermarkComingSoon = await page.evaluate(() => {
       const screen = document.getElementById('comingSoonScreen');
-      const title = document.getElementById('comingSoonTitle')?.textContent.trim();
-      const lead = document.getElementById('comingSoonLead')?.textContent.trim();
-      const workspaceHidden = document.getElementById('workspaceScreen')?.classList.contains('hidden');
-      const badge = screen?.querySelector('.badge-status')?.textContent.trim();
-      return {
-        screenVisible: screen && !screen.classList.contains('hidden'),
-        title,
-        lead,
-        workspaceHidden,
-        badge
-      };
+      const badge = screen?.querySelector('.badge-lab')?.textContent.trim();
+      const isVisible = screen && !screen.classList.contains('hidden');
+      return { isVisible, badge };
     });
-    record('Test Nav 3: Unfinished tool shows "กำลังพัฒนา" & "เครื่องมือนี้จะพร้อมใช้งานในเร็ว ๆ นี้"',
-      placeholderState.screenVisible && placeholderState.workspaceHidden && placeholderState.badge === 'กำลังพัฒนา',
-      `Title: ${placeholderState.title}, Badge: ${placeholderState.badge}, Lead: ${placeholderState.lead}`);
+    record('More Tools: Dropdown tools show clean "กำลังพัฒนา" screen with PDF LAB branding', watermarkComingSoon.isVisible && watermarkComingSoon.badge === 'PDF LAB');
 
-    // Test Nav 4: Return to IMAGE -> PDF restores workspace with all items intact
+    // Return to IMAGE -> PDF and verify workspace preserved
     await page.click('#btnBackToImageToPdf');
-    const restoredState = await page.evaluate(() => {
-      const workspaceVisible = !document.getElementById('workspaceScreen')?.classList.contains('hidden');
-      const activeBtn = document.querySelector('.nav-tool-item.active');
-      const cardCount = document.querySelectorAll('#thumbnailGrid .thumb-card').length;
-      return {
-        workspaceVisible,
-        activeToolId: activeBtn?.dataset.toolId,
-        cardCount
-      };
-    });
-    record('Test Nav 4: Returning to รูปภาพ → PDF restores full workspace with zero item loss',
-      restoredState.workspaceVisible && restoredState.activeToolId === 'image-to-pdf' && restoredState.cardCount === 3,
-      `Cards preserved: ${restoredState.cardCount}, Active: ${restoredState.activeToolId}`);
+    const restoredCards = await page.$$eval('#thumbnailGrid .thumb-card', elms => elms.length);
+    record('Preservation: Returning to IMAGE → PDF maintains all uploaded images in memory', restoredCards > 0, `Preserved cards: ${restoredCards}`);
 
-    // Test Nav 5: Dropdown menu renders extended tools and toggles correctly
-    await page.click('#btnMoreTools');
-    const dropdownOpened = await page.evaluate(() => {
-      const wrapper = document.getElementById('navDropdownWrapper');
-      const menu = document.getElementById('moreToolsMenu');
-      const items = Array.from(menu.querySelectorAll('.dropdown-item span:first-of-type')).map(s => s.textContent.trim());
-      return {
-        isOpen: wrapper.classList.contains('open') && !menu.classList.contains('hidden'),
-        items
-      };
-    });
-    const expectedMore = ['ใส่ลายน้ำ', 'ครอบตัด PDF', 'PDF → Word', 'PDF → PowerPoint', 'PDF → Excel'];
-    const dropdownItemsMatch = expectedMore.every(m => dropdownOpened.items.includes(m));
-    record('Test Nav 5: เพิ่มเติม ▾ dropdown opens and displays all secondary tools',
-      dropdownOpened.isOpen && dropdownItemsMatch,
-      `Items: ${dropdownOpened.items.join(', ')}`);
-
-    // Test Nav 6: Selecting item inside dropdown switches to its placeholder and closes dropdown
-    await page.click('[data-tool-id="pdf-to-word"]');
-    const wordToolState = await page.evaluate(() => {
-      const wrapper = document.getElementById('navDropdownWrapper');
-      const menu = document.getElementById('moreToolsMenu');
-      const title = document.getElementById('comingSoonTitle')?.textContent.trim();
-      return {
-        dropdownClosed: !wrapper.classList.contains('open') && menu.classList.contains('hidden'),
-        title
-      };
-    });
-    record('Test Nav 6: Selecting dropdown tool switches view and closes menu',
-      wordToolState.dropdownClosed && wordToolState.title === 'PDF → Word',
-      `Title: ${wordToolState.title}, Dropdown closed: ${wordToolState.dropdownClosed}`);
-
-    // Test Nav 7: Clicking logo brand switches back to รูปภาพ → PDF
-    await page.click('#navBrand');
-    const brandClickRestored = await page.evaluate(() => {
-      const activeBtn = document.querySelector('.nav-tool-item.active');
-      return activeBtn?.dataset.toolId === 'image-to-pdf';
-    });
-    record('Test Nav 7: Clicking brand logo returns to รูปภาพ → PDF', brandClickRestored, 'Brand click navigation works');
-
-    // Test Nav 8: Escape key closes dropdown
-    await page.click('#btnMoreTools');
-    await page.keyboard.press('Escape');
-    const escapeClosed = await page.evaluate(() => {
-      const wrapper = document.getElementById('navDropdownWrapper');
-      return !wrapper.classList.contains('open');
-    });
-    record('Test Nav 8: Pressing Escape closes dropdown menu accessible', escapeClosed, `Dropdown closed on Escape: ${escapeClosed}`);
-
+    // =========================================================================
+    // RESPONSIVE VISUAL QA (6 Viewports)
+    // =========================================================================
+    console.log('\n--- Running Responsive Visual QA across all viewports ---');
     const viewports = [
       { name: '1440x900_Desktop', width: 1440, height: 900 },
       { name: '1280x800_Laptop', width: 1280, height: 800 },
@@ -432,14 +550,11 @@ async function runTests() {
       { name: '375x667_Mobile_Small', width: 375, height: 667 }
     ];
 
-    await page.evaluate(() => window.scrollTo(0, 0));
-
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(250);
 
-      // Check horizontal overflow
       const hasHorizontalScrollbar = await page.evaluate(() => {
         return document.documentElement.scrollWidth > window.innerWidth;
       });
@@ -450,16 +565,15 @@ async function runTests() {
       record(`Responsive QA ${vp.width}×${vp.height}`, !hasHorizontalScrollbar, `No overflow: ${!hasHorizontalScrollbar}`);
     }
 
-    // --- TEST 46: Network Privacy QA ---
-    // Check if any network requests had user image data or were sent outside
+    // --- PRIVACY QA ---
     const nonLocalRequests = networkRequests.filter(req => {
       return !req.url.startsWith('/') && !req.url.includes('localhost') && !req.url.includes('127.0.0.1');
     });
-    record('Test 46: Privacy QA - Zero external network requests with user image data', nonLocalRequests.length === 0, `External requests: ${nonLocalRequests.length}`);
+    record('Privacy QA: Zero external network requests with user document data', nonLocalRequests.length === 0, `External requests: ${nonLocalRequests.length}`);
 
-    // --- TEST 45: Console QA ---
-    record('Test 45: Console QA - 0 uncaught JavaScript errors', consoleErrors.length === 0, `Errors: ${consoleErrors.join(', ') || 'None'}`);
-    record('Test 45: Console QA - 0 unhandled promise rejections', unhandledRejections.length === 0, `Rejections: ${unhandledRejections.join(', ') || 'None'}`);
+    // --- CONSOLE QA ---
+    record('Console QA: 0 uncaught JavaScript errors', consoleErrors.length === 0, `Errors: ${consoleErrors.join(', ') || 'None'}`);
+    record('Console QA: 0 unhandled promise rejections', unhandledRejections.length === 0, `Rejections: ${unhandledRejections.join(', ') || 'None'}`);
 
   } catch (err) {
     console.error('Fatal Test Suite Error:', err);

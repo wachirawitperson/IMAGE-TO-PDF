@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IMAGE → PDF | แปลงรูปภาพเป็น PDF บนเบราว์เซอร์</title>
-  <meta name="description" content="แปลงรูปภาพเป็นเอกสาร PDF ในเครื่องของคุณ 100% รวดเร็ว ปลอดภัย ไม่ส่งไฟล์ขึ้นเซิร์ฟเวอร์ รองรับ JPG, PNG, WebP, BMP, HEIC">
+  <title>PDF LAB | เครื่องมือจัดการ PDF สำหรับครู</title>
+  <meta name="description" content="เครื่องมือจัดการ PDF ในเครื่องของคุณ 100% รวดเร็ว ปลอดภัย ไม่ส่งไฟล์ขึ้นเซิร์ฟเวอร์ แปลงรูปภาพ รวม แยก จัดหน้า แปลงเป็นรูปภาพ ใส่เลขหน้า และ OCR">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Crect width='24' height='24' rx='6' fill='%231b1e22'/%3E%3Ctext x='12' y='17' font-size='12' text-anchor='middle' fill='%23f59e0b' font-weight='bold' font-family='sans-serif'%3EPDF%3C/text%3E%3C/svg%3E">
 
   <!-- Font -->
@@ -18,6 +18,14 @@
   <script src="vendor/pdf-lib.min.js"></script>
   <script src="vendor/Sortable.min.js"></script>
   <script src="vendor/heic2any.min.js"></script>
+  <script src="vendor/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+    }
+  </script>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="vendor/tesseract.min.js"></script>
 </head>
 <body>
   <!-- App Container -->
@@ -25,14 +33,8 @@
     
     <!-- Top Navigation Header -->
     <header class="top-nav" role="banner">
-      <div class="nav-brand" id="navBrand" role="button" tabindex="0" title="กลับหน้าแรก IMAGE → PDF">
+      <div class="nav-brand" id="navBrand" role="button" tabindex="0" title="กลับหน้าแรก PDF LAB">
         <div class="logo-mark" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-          <span class="arrow">→</span>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -43,24 +45,23 @@
         </div>
         <div class="brand-titles">
           <div class="brand-heading-row">
-            <h1 class="product-title">IMAGE → PDF</h1>
-            <span class="lab-tag" title="Teacher PDF Lab Utility">Teacher PDF Lab</span>
+            <h1 class="product-title">PDF LAB</h1>
           </div>
-          <p class="product-subtitle">รวมรูปภาพเป็นไฟล์ PDF ได้อย่างง่ายดาย</p>
+          <p class="product-subtitle">เครื่องมือจัดการ PDF สำหรับครู</p>
         </div>
       </div>
 
       <!-- Main Tools Navigation -->
-      <nav class="tools-nav-bar" id="toolsNav" aria-label="เครื่องมือจัดการ PDF สำหรับครู">
+      <nav class="tools-nav-bar" id="toolsNav" aria-label="เครื่องมือจัดการ PDF">
         <div class="tools-nav-track" id="toolsNavTrack" role="menubar">
-          <!-- 1. รูปภาพ → PDF (Active primary tool) -->
-          <button type="button" class="nav-tool-item active" data-tool-id="image-to-pdf" role="menuitem" aria-current="page" title="รูปภาพ → PDF">
+          <!-- 1. IMAGE → PDF (Active primary tool) -->
+          <button type="button" class="nav-tool-item active" data-tool-id="image-to-pdf" role="menuitem" aria-current="page" title="IMAGE → PDF">
             <svg class="tool-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
-            <span>รูปภาพ → PDF</span>
+            <span>IMAGE → PDF</span>
           </button>
 
           <!-- 2. รวม PDF -->
@@ -219,7 +220,7 @@
       </div>
     </header>
 
-    <!-- Global Hidden File Input -->
+    <!-- Global Hidden File Inputs -->
     <input 
       type="file" 
       id="fileInput" 
@@ -229,6 +230,12 @@
       tabindex="-1"
       aria-label="เลือกไฟล์รูปภาพ"
     >
+    <input type="file" id="fileInputMerge" multiple accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับรวม">
+    <input type="file" id="fileInputSplit" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับแยกหน้า">
+    <input type="file" id="fileInputOrganize" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับจัดหน้า">
+    <input type="file" id="fileInputPdfToImg" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับแปลงเป็นรูปภาพ">
+    <input type="file" id="fileInputPageNum" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับใส่เลขหน้า">
+    <input type="file" id="fileInputOcr" accept=".pdf,application/pdf,image/jpeg,image/png,image/webp" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF หรือรูปภาพสำหรับทำ OCR">
 
     <!-- Main Content Area -->
     <main class="main-content" id="mainContent">
@@ -526,11 +533,585 @@
 
       </section>
       
-      <!-- STATE 3: Coming Soon / Under Development Screen -->
+      <!-- TOOL 2: รวม PDF (Merge PDF) -->
+      <section class="tool-view hidden" id="toolMergePdf" aria-labelledby="mergeHeading">
+        <!-- Merge Upload Landing -->
+        <div class="upload-screen" id="mergeUploadScreen">
+          <div class="upload-card">
+            <div class="drop-zone" id="mergeDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากไฟล์ PDF มาวางที่นี่เพื่อรวมไฟล์">
+              <div class="drop-zone-icon-wrapper">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8 2h11a2 2 0 0 1 2 2v11"/>
+                  <rect x="3" y="7" width="13" height="13" rx="2"/>
+                </svg>
+              </div>
+              <h2 id="mergeHeading" class="drop-title">ลากไฟล์ PDF มาวางที่นี่</h2>
+              <p class="drop-desc">เลือกไฟล์ PDF หลายไฟล์เพื่อรวมเป็นเอกสารเดียว จัดลำดับหน้าได้ตามใจ</p>
+              <div class="drop-divider"><span>หรือ</span></div>
+              <button type="button" class="btn btn-primary btn-lg" id="btnSelectMergePdf">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>+ เลือกไฟล์ PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Merge Workspace -->
+        <div class="workspace-screen hidden" id="mergeWorkspaceScreen">
+          <div class="workspace-left">
+            <div class="workspace-toolbar">
+              <div class="toolbar-left">
+                <span class="file-count-badge" id="mergeFileCount">0 ไฟล์</span>
+                <span class="reorder-banner">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 10 12 15 17 10"/></svg>
+                  ลากรายการไฟล์เพื่อเรียงลำดับการรวม
+                </span>
+              </div>
+              <div class="toolbar-right">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnAddMoreMergePdf" title="เพิ่มไฟล์ PDF เพิ่มเติม">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>+ เพิ่ม PDF</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearMergePdf" title="ล้างรายการ PDF ทั้งหมด">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>ล้างทั้งหมด</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="pdf-file-list" id="mergeFileList">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <aside class="workspace-right">
+            <div class="settings-card">
+              <h3 class="settings-title">ตั้งค่าการรวม PDF</h3>
+              <div class="summary-card-box">
+                <div class="summary-row">
+                  <span>จำนวนไฟล์:</span>
+                  <strong id="mergeSummaryFiles">0 ไฟล์</strong>
+                </div>
+                <div class="summary-row">
+                  <span>จำนวนหน้ารวม:</span>
+                  <strong id="mergeSummaryPages">0 หน้า</strong>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="mergeOutputFilename">ชื่อไฟล์ปลายทาง</label>
+                <div class="filename-input-wrap">
+                  <input type="text" id="mergeOutputFilename" class="input-text" value="merged" placeholder="merged">
+                  <span class="file-ext">.pdf</span>
+                </div>
+              </div>
+
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecuteMerge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2h11a2 2 0 0 1 2 2v11"/><rect x="3" y="7" width="13" height="13" rx="2"/></svg>
+                  <span>รวม PDF</span>
+                </button>
+                <p class="action-subtext">ประมวลผลในเครื่อง 100% ไม่ส่งข้อมูลออก</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- TOOL 3: แยก PDF (Split / Extract PDF) -->
+      <section class="tool-view hidden" id="toolSplitPdf" aria-labelledby="splitHeading">
+        <!-- Split Upload Landing -->
+        <div class="upload-screen" id="splitUploadScreen">
+          <div class="upload-card">
+            <div class="drop-zone" id="splitDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากไฟล์ PDF มาวางที่นี่เพื่อแยกหน้า">
+              <div class="drop-zone-icon-wrapper">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="2" y1="13" x2="22" y2="13" stroke-dasharray="3 3"/>
+                </svg>
+              </div>
+              <h2 id="splitHeading" class="drop-title">ลากไฟล์ PDF มาวางที่นี่</h2>
+              <p class="drop-desc">เลือกหน้าที่ต้องการจาก PDF แล้วสร้างเป็นไฟล์เอกสารใหม่</p>
+              <div class="drop-divider"><span>หรือ</span></div>
+              <button type="button" class="btn btn-primary btn-lg" id="btnSelectSplitPdf">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ เลือกไฟล์ PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Split Workspace -->
+        <div class="workspace-screen hidden" id="splitWorkspaceScreen">
+          <div class="workspace-left">
+            <div class="workspace-toolbar">
+              <div class="toolbar-left">
+                <span class="file-count-badge" id="splitFileBadge">0 หน้า</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnSplitSelectAll">เลือกทั้งหมด</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btnSplitDeselectAll">ยกเลิกทั้งหมด</button>
+              </div>
+              <div class="toolbar-right">
+                <div class="range-input-wrap">
+                  <input type="text" id="splitRangeInput" class="input-text input-sm" placeholder="ระบุช่วงหน้า เช่น 1-3, 5">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnSplitApplyRange">นำไปใช้</button>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearSplitPdf" title="เปลี่ยนไฟล์">
+                  <span>เปลี่ยนไฟล์</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="thumbnail-grid" id="splitThumbnailGrid">
+              <!-- Rendered page cards with selection checkmarks -->
+            </div>
+          </div>
+
+          <aside class="workspace-right">
+            <div class="settings-card">
+              <h3 class="settings-title">แยกหน้าที่เลือก</h3>
+              <div class="summary-card-box">
+                <div class="summary-row">
+                  <span>หน้าที่เลือก:</span>
+                  <strong id="splitSummarySelected">0 จาก 0 หน้า</strong>
+                </div>
+                <div class="summary-row">
+                  <span>ชื่อไฟล์ต้นฉบับ:</span>
+                  <span id="splitOriginalName" class="text-truncate">-</span>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="splitOutputFilename">ชื่อไฟล์ปลายทาง</label>
+                <div class="filename-input-wrap">
+                  <input type="text" id="splitOutputFilename" class="input-text" value="selected-pages" placeholder="selected-pages">
+                  <span class="file-ext">.pdf</span>
+                </div>
+              </div>
+
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecuteSplit">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="2" y1="13" x2="22" y2="13" stroke-dasharray="3 3"/></svg>
+                  <span>แยก PDF</span>
+                </button>
+                <p class="action-subtext">ไฟล์ต้นฉบับจะไม่ถูกเปลี่ยนแปลง</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- TOOL 4: จัดหน้า PDF (Organize PDF) -->
+      <section class="tool-view hidden" id="toolOrganizePdf" aria-labelledby="organizeHeading">
+        <!-- Organize Upload Landing -->
+        <div class="upload-screen" id="organizeUploadScreen">
+          <div class="upload-card">
+            <div class="drop-zone" id="organizeDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากไฟล์ PDF มาวางที่นี่เพื่อจัดหน้า">
+              <div class="drop-zone-icon-wrapper">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+              </div>
+              <h2 id="organizeHeading" class="drop-title">ลากไฟล์ PDF มาวางที่นี่</h2>
+              <p class="drop-desc">จัดเรียงลำดับ หมุนหน้า 90° หรือลบหน้าที่ไม่ต้องการออก</p>
+              <div class="drop-divider"><span>หรือ</span></div>
+              <button type="button" class="btn btn-primary btn-lg" id="btnSelectOrganizePdf">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ เลือกไฟล์ PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Organize Workspace -->
+        <div class="workspace-screen hidden" id="organizeWorkspaceScreen">
+          <div class="workspace-left">
+            <div class="workspace-toolbar">
+              <div class="toolbar-left">
+                <span class="file-count-badge" id="organizeFileBadge">0 หน้า</span>
+                <span class="reorder-banner">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 10 12 15 17 10"/></svg>
+                  ลากหน้าเพื่อเปลี่ยนลำดับ
+                </span>
+              </div>
+              <div class="toolbar-right">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnOrganizeRotateAll" title="หมุนตามเข็มนาฬิกาทุกหน้า">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>หมุนขวา 90° ทั้งหมด</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnOrganizeReset" title="รีเซ็ตกลับเป็นลำดับเดิม">
+                  <span>รีเซ็ตลำดับเดิม</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearOrganizePdf" title="เปลี่ยนไฟล์">
+                  <span>เปลี่ยนไฟล์</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="thumbnail-grid" id="organizeThumbnailGrid">
+              <!-- Rendered sortable pages with rotate & delete actions -->
+            </div>
+          </div>
+
+          <aside class="workspace-right">
+            <div class="settings-card">
+              <h3 class="settings-title">จัดหน้าเอกสาร</h3>
+              <div class="summary-card-box">
+                <div class="summary-row">
+                  <span>จำนวนหน้าคงเหลือ:</span>
+                  <strong id="organizeSummaryPages">0 หน้า</strong>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="organizeOutputFilename">ชื่อไฟล์ปลายทาง</label>
+                <div class="filename-input-wrap">
+                  <input type="text" id="organizeOutputFilename" class="input-text" value="organized" placeholder="organized">
+                  <span class="file-ext">.pdf</span>
+                </div>
+              </div>
+
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecuteOrganize">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>บันทึก PDF</span>
+                </button>
+                <p class="action-subtext">ประมวลผลในเครื่อง 100% ไม่ส่งข้อมูลออก</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- TOOL 5: PDF → รูปภาพ (PDF to Images) -->
+      <section class="tool-view hidden" id="toolPdfToImage" aria-labelledby="pdfToImgHeading">
+        <!-- PDF to Img Upload Landing -->
+        <div class="upload-screen" id="pdfToImgUploadScreen">
+          <div class="upload-card">
+            <div class="drop-zone" id="pdfToImgDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากไฟล์ PDF มาวางที่นี่เพื่อแปลงเป็นรูปภาพ">
+              <div class="drop-zone-icon-wrapper">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="M21 15l-5-5L5 21"/>
+                </svg>
+              </div>
+              <h2 id="pdfToImgHeading" class="drop-title">ลากไฟล์ PDF มาวางที่นี่</h2>
+              <p class="drop-desc">แปลงหน้าเอกสาร PDF เป็นไฟล์ภาพ JPG หรือ PNG คมชัด</p>
+              <div class="drop-divider"><span>หรือ</span></div>
+              <button type="button" class="btn btn-primary btn-lg" id="btnSelectPdfToImg">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ เลือกไฟล์ PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PDF to Img Workspace -->
+        <div class="workspace-screen hidden" id="pdfToImgWorkspaceScreen">
+          <div class="workspace-left">
+            <div class="workspace-toolbar">
+              <div class="toolbar-left">
+                <span class="file-count-badge" id="pdfToImgFileBadge">0 หน้า</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnPdfToImgSelectAll">เลือกทั้งหมด</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btnPdfToImgDeselectAll">ยกเลิกทั้งหมด</button>
+              </div>
+              <div class="toolbar-right">
+                <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearPdfToImg" title="เปลี่ยนไฟล์">
+                  <span>เปลี่ยนไฟล์</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="thumbnail-grid" id="pdfToImgThumbnailGrid">
+              <!-- Rendered pages with selection checkmarks -->
+            </div>
+          </div>
+
+          <aside class="workspace-right">
+            <div class="settings-card">
+              <h3 class="settings-title">ตั้งค่าการแปลงภาพ</h3>
+              
+              <div class="setting-group">
+                <label class="setting-label">ฟอร์แมตรูปภาพ</label>
+                <div class="segmented-control">
+                  <label class="segment-option">
+                    <input type="radio" name="pdfToImgFormat" value="image/jpeg" checked>
+                    <span>JPG</span>
+                  </label>
+                  <label class="segment-option">
+                    <input type="radio" name="pdfToImgFormat" value="image/png">
+                    <span>PNG</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="setting-group" id="groupImgQuality">
+                <label class="setting-label" for="pdfToImgQuality">คุณภาพรูปภาพ (JPG)</label>
+                <select id="pdfToImgQuality" class="select-control">
+                  <option value="0.8">ปานกลาง (80%) - ขนาดไฟล์กะทัดรัด</option>
+                  <option value="0.9" selected>สูง (90%) - คมชัดสมดุล</option>
+                  <option value="1.0">สูงสุด (100%) - คมชัดที่สุด</option>
+                </select>
+              </div>
+
+              <div class="summary-card-box">
+                <div class="summary-row">
+                  <span>หน้าที่เลือกแปลง:</span>
+                  <strong id="pdfToImgSummarySelected">0 หน้า</strong>
+                </div>
+                <div class="summary-row">
+                  <span>รูปแบบผลลัพธ์:</span>
+                  <span id="pdfToImgSummaryOutputNote">ไฟล์เดียวหรือ ZIP อัตโนมัติ</span>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="pdfToImgOutputFilename">ชื่อไฟล์ปลายทาง</label>
+                <div class="filename-input-wrap">
+                  <input type="text" id="pdfToImgOutputFilename" class="input-text" value="pdf-images" placeholder="pdf-images">
+                </div>
+              </div>
+
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecutePdfToImg">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>แปลงและดาวน์โหลดรูปภาพ</span>
+                </button>
+                <p class="action-subtext">แปลงในเครื่อง 100% ดาวน์โหลดเป็น ZIP หากมีหลายหน้า</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- TOOL 6: ใส่เลขหน้า (Page Numbering) -->
+      <section class="tool-view hidden" id="toolPageNumber" aria-labelledby="pageNumHeading">
+        <!-- Page Number Upload Landing -->
+        <div class="upload-screen" id="pageNumUploadScreen">
+          <div class="upload-card">
+            <div class="drop-zone" id="pageNumDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากไฟล์ PDF มาวางที่นี่เพื่อใส่เลขหน้า">
+              <div class="drop-zone-icon-wrapper">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19h16"/>
+                  <line x1="10" y1="4" x2="8" y2="20"/>
+                  <line x1="16" y1="4" x2="14" y2="20"/>
+                  <line x1="6" y1="9" x2="18" y2="9"/>
+                  <line x1="6" y1="15" x2="18" y2="15"/>
+                </svg>
+              </div>
+              <h2 id="pageNumHeading" class="drop-title">ลากไฟล์ PDF มาวางที่นี่</h2>
+              <p class="drop-desc">เพิ่มหมายเลขหน้าลงในเอกสาร PDF ระบุตำแหน่งและรูปแบบได้ตามต้องการ</p>
+              <div class="drop-divider"><span>หรือ</span></div>
+              <button type="button" class="btn btn-primary btn-lg" id="btnSelectPageNum">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ เลือกไฟล์ PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page Number Workspace -->
+        <div class="workspace-screen hidden" id="pageNumWorkspaceScreen">
+          <div class="workspace-left">
+            <div class="workspace-toolbar">
+              <div class="toolbar-left">
+                <span class="file-count-badge" id="pageNumFileBadge">0 หน้า</span>
+                <span class="reorder-banner">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+                  ตัวอย่างตำแหน่งเลขหน้าบนแต่ละหน้า
+                </span>
+              </div>
+              <div class="toolbar-right">
+                <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearPageNum" title="เปลี่ยนไฟล์">
+                  <span>เปลี่ยนไฟล์</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="thumbnail-grid" id="pageNumThumbnailGrid">
+              <!-- Rendered pages with page number overlay indicator -->
+            </div>
+          </div>
+
+          <aside class="workspace-right">
+            <div class="settings-card">
+              <h3 class="settings-title">ตั้งค่าหมายเลขหน้า</h3>
+
+              <div class="setting-group">
+                <label class="setting-label">ตำแหน่งบนหน้ากระดาษ</label>
+                <div class="position-grid">
+                  <button type="button" class="pos-btn" data-pos="top-left" title="บนซ้าย">บนซ้าย</button>
+                  <button type="button" class="pos-btn" data-pos="top-center" title="บนกลาง">บนกลาง</button>
+                  <button type="button" class="pos-btn" data-pos="top-right" title="บนขวา">บนขวา</button>
+                  <button type="button" class="pos-btn" data-pos="bottom-left" title="ล่างซ้าย">ล่างซ้าย</button>
+                  <button type="button" class="pos-btn active" data-pos="bottom-center" title="ล่างกลาง">ล่างกลาง</button>
+                  <button type="button" class="pos-btn" data-pos="bottom-right" title="ล่างขวา">ล่างขวา</button>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="pageNumStart">เริ่มนับจากเลขที่</label>
+                <input type="number" id="pageNumStart" class="input-text" value="1" min="1" max="99999">
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="pageNumFormat">รูปแบบการแสดงเลขหน้า</label>
+                <select id="pageNumFormat" class="select-control">
+                  <option value="plain" selected>1, 2, 3... (เฉพาะตัวเลข)</option>
+                  <option value="thai-prefix">หน้า 1, หน้า 2, หน้า 3... (คำนำหน้า "หน้า")</option>
+                  <option value="page-total">1 / {total} (เลขหน้า / หน้าทั้งหมด)</option>
+                </select>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="pageNumOutputFilename">ชื่อไฟล์ปลายทาง</label>
+                <div class="filename-input-wrap">
+                  <input type="text" id="pageNumOutputFilename" class="input-text" value="numbered" placeholder="numbered">
+                  <span class="file-ext">.pdf</span>
+                </div>
+              </div>
+
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecutePageNum">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>ใส่เลขหน้า PDF</span>
+                </button>
+                <p class="action-subtext">สร้างไฟล์ใหม่ ไฟล์ต้นฉบับไม่ถูกแก้ไข</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- TOOL 7: OCR PDF (Extract Text / Searchable PDF) -->
+      <section class="tool-view hidden" id="toolOcrPdf" aria-labelledby="ocrHeading">
+        <!-- OCR Upload Landing -->
+        <div class="upload-screen" id="ocrUploadScreen">
+          <div class="upload-card">
+            <div class="drop-zone" id="ocrDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากไฟล์ PDF หรือรูปภาพมาวางที่นี่เพื่อทำ OCR">
+              <div class="drop-zone-icon-wrapper">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7V4h3"/>
+                  <path d="M20 7V4h-3"/>
+                  <path d="M4 17v3h3"/>
+                  <path d="M20 17v3h-3"/>
+                  <line x1="9" y1="9" x2="15" y2="9"/>
+                  <line x1="12" y1="9" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <h2 id="ocrHeading" class="drop-title">ลากไฟล์ PDF หรือรูปภาพสแกนมาวางที่นี่</h2>
+              <p class="drop-desc">สแกนและแปลงข้อความในรูปภาพหรือ PDF ให้เป็นตัวหนังสือที่ค้นหาและคัดลอกได้</p>
+              <div class="drop-divider"><span>หรือ</span></div>
+              <button type="button" class="btn btn-primary btn-lg" id="btnSelectOcrFile">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ เลือกไฟล์เอกสาร / รูปภาพ</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- OCR Workspace -->
+        <div class="workspace-screen hidden" id="ocrWorkspaceScreen">
+          <div class="workspace-left">
+            <div class="workspace-toolbar">
+              <div class="toolbar-left">
+                <span class="file-count-badge" id="ocrFileBadge">0 หน้า</span>
+                <span id="ocrStatusBadge" class="badge-status">พร้อมทำ OCR</span>
+              </div>
+              <div class="toolbar-right">
+                <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearOcr" title="เปลี่ยนไฟล์">
+                  <span>เปลี่ยนไฟล์</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Previews -->
+            <div class="thumbnail-grid" id="ocrThumbnailGrid">
+              <!-- Rendered pages/image preview -->
+            </div>
+
+            <!-- OCR Results Box -->
+            <div class="ocr-results-box hidden" id="ocrResultsBox">
+              <div class="ocr-results-header">
+                <h4 class="ocr-results-title">ผลลัพธ์ข้อความจากการ OCR (Extracted Text)</h4>
+                <div class="ocr-actions-row">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOcrCopy" title="คัดลอกข้อความทั้งหมด">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>คัดลอก</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOcrDownloadTxt" title="ดาวน์โหลดเป็นไฟล์ข้อความ .txt">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>ดาวน์โหลด .txt</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOcrDownloadPdf" title="ดาวน์โหลดเป็น PDF พร้อมข้อความ">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>ดาวน์โหลด PDF พร้อมข้อความ</span>
+                  </button>
+                </div>
+              </div>
+              <textarea id="ocrExtractedText" class="ocr-textarea" rows="10" readonly placeholder="ข้อความที่สแกนได้จะปรากฏที่นี่..."></textarea>
+            </div>
+          </div>
+
+          <aside class="workspace-right">
+            <div class="settings-card">
+              <h3 class="settings-title">ตั้งค่า OCR</h3>
+
+              <div class="setting-group">
+                <label class="setting-label" for="ocrLanguage">ภาษาของเอกสาร</label>
+                <select id="ocrLanguage" class="select-control">
+                  <option value="eng" selected>ภาษาอังกฤษ (English)</option>
+                  <option value="tha">ภาษาไทย (Thai)</option>
+                  <option value="eng+tha">ภาษาอังกฤษ + ไทย (English + Thai)</option>
+                </select>
+              </div>
+
+              <!-- Live Progress Card -->
+              <div class="ocr-progress-card hidden" id="ocrProgressCard">
+                <div class="ocr-progress-header">
+                  <div class="spinner-sm" aria-hidden="true"></div>
+                  <span id="ocrProgressStatus">กำลังเริ่มต้นประมวลผล...</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" id="ocrProgressBarFill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-stats">
+                  <span id="ocrProgressPercent">0%</span>
+                  <span id="ocrProgressPages">0 / 0 หน้า</span>
+                </div>
+              </div>
+
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecuteOcr">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span>เริ่มทำ OCR</span>
+                </button>
+                <p class="action-subtext">ประมวลผลผ่าน WebAssembly ในเครื่อง 100%</p>
+              </div>
+
+              <div class="privacy-callout-card">
+                <div class="privacy-callout-header">
+                  <span>🔒 ความเป็นส่วนตัวสูงสุด</span>
+                </div>
+                <p>การตรวจจับตัวอักษรทำงานในเบราว์เซอร์ของคุณโดยตรง เอกสารจะไม่ถูกอัปโหลดขึ้นเซิร์ฟเวอร์ใด ๆ ทั้งสิ้น</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+      
+      <!-- STATE 3: Coming Soon / Under Development Screen (for More Tools dropdown) -->
       <section class="coming-soon-screen hidden" id="comingSoonScreen" aria-labelledby="comingSoonTitle">
         <div class="coming-soon-card">
           <div class="coming-soon-badge-row">
-            <span class="badge-lab">Teacher PDF Lab</span>
+            <span class="badge-lab">PDF LAB</span>
             <span class="badge-status">กำลังพัฒนา</span>
           </div>
           
@@ -541,9 +1122,9 @@
             </svg>
           </div>
 
-          <h2 class="coming-soon-title" id="comingSoonTitle">รวม PDF</h2>
+          <h2 class="coming-soon-title" id="comingSoonTitle">เครื่องมือเพิ่มเติม</h2>
           <p class="coming-soon-lead" id="comingSoonLead">เครื่องมือนี้จะพร้อมใช้งานในเร็ว ๆ นี้</p>
-          <p class="coming-soon-desc" id="comingSoonDesc">กำลังอยู่ระหว่างการพัฒนาสำหรับระบบ Teacher PDF Lab เพื่อสนับสนุนการเตรียมสื่อและเอกสารการสอนของคุณครู</p>
+          <p class="coming-soon-desc" id="comingSoonDesc">กำลังอยู่ระหว่างการพัฒนาสำหรับ PDF LAB</p>
 
           <div class="coming-soon-actions">
             <button type="button" class="btn btn-primary" id="btnBackToImageToPdf">
@@ -551,7 +1132,7 @@
                 <line x1="19" y1="12" x2="5" y2="12"/>
                 <polyline points="12 19 5 12 12 5"/>
               </svg>
-              <span>กลับสู่เครื่องมือ รูปภาพ → PDF</span>
+              <span>กลับสู่เครื่องมือ IMAGE → PDF</span>
             </button>
           </div>
 
@@ -559,7 +1140,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
-            <span>รูปภาพและงานที่คุณทำค้างไว้ใน "รูปภาพ → PDF" ยังคงอยู่ครบถ้วน ไม่สูญหาย</span>
+            <span>รูปภาพและงานที่คุณทำค้างไว้ใน "IMAGE → PDF" ยังคงอยู่ครบถ้วน ไม่สูญหาย</span>
           </div>
         </div>
       </section>
@@ -592,6 +1173,7 @@
   </div>
 
   <script src="app.js"></script>
+  <script src="pdf-tools.js"></script>
 </body>
 </html>
 
