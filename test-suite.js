@@ -538,6 +538,112 @@ async function runTests() {
     record('Preservation: Returning to IMAGE → PDF maintains all uploaded images in memory', restoredCards > 0, `Preserved cards: ${restoredCards}`);
 
     // =========================================================================
+    // THEME TOGGLE & PERSISTENCE QA
+    // =========================================================================
+    console.log('\n--- Testing Theme Toggle & Persistence QA ---');
+
+    // 1. Initial default state is dark
+    const initialThemeState = await page.evaluate(() => {
+      const btn = document.getElementById('btnThemeToggle');
+      const dataTheme = document.documentElement.getAttribute('data-theme');
+      const ariaLabel = btn ? btn.getAttribute('aria-label') : '';
+      const ariaPressed = btn ? btn.getAttribute('aria-pressed') : '';
+      return {
+        dataTheme,
+        ariaLabel,
+        ariaPressed,
+        exists: !!btn
+      };
+    });
+    record('Theme 1: Default theme is Dark and toggle button exists', 
+      initialThemeState.exists && (initialThemeState.dataTheme === 'dark' || !initialThemeState.dataTheme) && initialThemeState.ariaLabel === 'เปลี่ยนเป็นโหมดสว่าง',
+      `data-theme: ${initialThemeState.dataTheme}, aria-label: ${initialThemeState.ariaLabel}`);
+
+    // 2. Click to switch to Light mode
+    await page.click('#btnThemeToggle');
+    const lightThemeState = await page.evaluate(() => {
+      const btn = document.getElementById('btnThemeToggle');
+      const dataTheme = document.documentElement.getAttribute('data-theme');
+      const saved = localStorage.getItem('pdf-lab-theme');
+      const ariaLabel = btn ? btn.getAttribute('aria-label') : '';
+      const ariaPressed = btn ? btn.getAttribute('aria-pressed') : '';
+      const bgApp = window.getComputedStyle(document.body).backgroundColor;
+      return {
+        dataTheme,
+        saved,
+        ariaLabel,
+        ariaPressed,
+        bgApp
+      };
+    });
+    record('Theme 2: Clicking toggle switches to Light theme and updates localStorage',
+      lightThemeState.dataTheme === 'light' && lightThemeState.saved === 'light' && lightThemeState.ariaLabel === 'เปลี่ยนเป็นโหมดมืด',
+      `data-theme: ${lightThemeState.dataTheme}, saved: ${lightThemeState.saved}, label: ${lightThemeState.ariaLabel}`);
+
+    // 3. Reload page and verify Light theme persists
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    const persistedLightState = await page.evaluate(() => {
+      const btn = document.getElementById('btnThemeToggle');
+      const dataTheme = document.documentElement.getAttribute('data-theme');
+      const saved = localStorage.getItem('pdf-lab-theme');
+      const ariaLabel = btn ? btn.getAttribute('aria-label') : '';
+      return {
+        dataTheme,
+        saved,
+        ariaLabel
+      };
+    });
+    record('Theme 3: Light theme persists on page reload',
+      persistedLightState.dataTheme === 'light' && persistedLightState.saved === 'light' && persistedLightState.ariaLabel === 'เปลี่ยนเป็นโหมดมืด',
+      `data-theme: ${persistedLightState.dataTheme}, saved: ${persistedLightState.saved}`);
+
+    // 4. Click to switch back to Dark mode
+    await page.click('#btnThemeToggle');
+    const switchedDarkState = await page.evaluate(() => {
+      const btn = document.getElementById('btnThemeToggle');
+      const dataTheme = document.documentElement.getAttribute('data-theme');
+      const saved = localStorage.getItem('pdf-lab-theme');
+      const ariaLabel = btn ? btn.getAttribute('aria-label') : '';
+      return {
+        dataTheme,
+        saved,
+        ariaLabel
+      };
+    });
+    record('Theme 4: Clicking toggle switches back to Dark theme and updates localStorage',
+      switchedDarkState.dataTheme === 'dark' && switchedDarkState.saved === 'dark' && switchedDarkState.ariaLabel === 'เปลี่ยนเป็นโหมดสว่าง',
+      `data-theme: ${switchedDarkState.dataTheme}, saved: ${switchedDarkState.saved}`);
+
+    // 5. Reload page and verify Dark theme persists
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    const persistedDarkState = await page.evaluate(() => {
+      const dataTheme = document.documentElement.getAttribute('data-theme');
+      const saved = localStorage.getItem('pdf-lab-theme');
+      return { dataTheme, saved };
+    });
+    record('Theme 5: Dark theme persists on page reload',
+      persistedDarkState.dataTheme === 'dark' && persistedDarkState.saved === 'dark',
+      `data-theme: ${persistedDarkState.dataTheme}, saved: ${persistedDarkState.saved}`);
+
+    // 6. Verify NO obsolete Settings or System theme controls exist in DOM
+    const obsoleteControls = await page.evaluate(() => {
+      const textMatches = Array.from(document.querySelectorAll('*')).filter(el => {
+        const t = el.textContent || '';
+        return t.includes('ตามระบบ') || t.includes('System Theme') || (el.tagName === 'BUTTON' && t.includes('Settings'));
+      });
+      const settingsButtons = document.querySelectorAll('#btnSettings, .btn-settings, [data-action="settings"]');
+      return {
+        textMatchesCount: textMatches.length,
+        settingsButtonsCount: settingsButtons.length
+      };
+    });
+    record('Theme 6: Obsolete "System" and "Settings" controls do not exist',
+      obsoleteControls.settingsButtonsCount === 0 && obsoleteControls.textMatchesCount === 0,
+      `Settings buttons: ${obsoleteControls.settingsButtonsCount}, System text matches: ${obsoleteControls.textMatchesCount}`);
+
+    // =========================================================================
     // RESPONSIVE VISUAL QA (6 Viewports)
     // =========================================================================
     console.log('\n--- Running Responsive Visual QA across all viewports ---');

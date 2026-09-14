@@ -46,6 +46,42 @@
   --transition-normal: 0.22s ease;
 }
 
+/* Light Theme Variables */
+[data-theme="light"] {
+  --bg-app: #f4f5f7;
+  --bg-workspace: #eceef1;
+  --bg-panel: #ffffff;
+  --bg-surface: #f3f4f6;
+  --bg-surface-hover: #e5e7eb;
+  --bg-surface-active: #d1d5db;
+
+  --border-subtle: #e2e5e9;
+  --border-strong: #cbd2d9;
+  --border-focus: #d97706;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-inverse: #ffffff;
+
+  --accent-amber: #d97706;
+  --accent-amber-hover: #b45309;
+  --accent-amber-active: #92400e;
+  --accent-amber-glow: rgba(217, 119, 6, 0.2);
+  --accent-amber-subtle: rgba(217, 119, 6, 0.12);
+
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-subtle: rgba(220, 38, 38, 0.1);
+
+  --success: #059669;
+  --success-subtle: rgba(5, 150, 105, 0.1);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
 /* Reset & Box Sizing */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -526,6 +562,138 @@ button, input, select, textarea {
   border-radius: 50%;
   background-color: var(--success);
   box-shadow: 0 0 8px var(--success);
+}
+
+/* ==========================================================================
+   Theme Toggle Control (Compact, Accessible, ☀ ━━● ☾)
+   ========================================================================== */
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 4px 8px;
+  cursor: pointer;
+  height: 34px;
+  min-width: 68px;
+  transition: all var(--transition-fast);
+  color: var(--text-muted);
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure minimum 44px touch target on touch devices */
+.theme-toggle-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 44px;
+  min-height: 44px;
+  width: 100%;
+  height: 100%;
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+
+.theme-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+  color: var(--text-muted);
+}
+
+.theme-track {
+  width: 26px;
+  height: 14px;
+  background-color: var(--border-strong);
+  border-radius: 999px;
+  position: relative;
+  transition: background-color var(--transition-fast);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.theme-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--accent-amber);
+  transition: transform var(--transition-normal), background-color var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark Mode Active (Default) */
+[data-theme="dark"] .theme-toggle-btn .icon-moon,
+:root:not([data-theme="light"]) .theme-toggle-btn .icon-moon {
+  color: var(--accent-amber);
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] .theme-toggle-btn .theme-thumb,
+:root:not([data-theme="light"]) .theme-toggle-btn .theme-thumb {
+  transform: translateX(12px);
+}
+
+/* Light Mode Active */
+[data-theme="light"] .theme-toggle-btn .icon-sun {
+  color: var(--accent-amber);
+  transform: scale(1.1);
+}
+
+[data-theme="light"] .theme-toggle-btn .theme-thumb {
+  transform: translateX(0);
+}
+
+[data-theme="light"] .theme-track {
+  background-color: var(--border-strong);
+}
+
+/* Light Theme Element Overrides */
+[data-theme="light"] .drop-zone:hover,
+[data-theme="light"] .drop-zone.drag-active {
+  background-color: #f9fafb;
+}
+
+[data-theme="light"] .card-preview-container {
+  background-color: #f3f4f6;
+}
+
+[data-theme="light"] .page-card-selectable.selected {
+  background-color: #fffbeb;
+}
+
+[data-theme="light"] .page-card-selectable.selected .page-select-checkbox {
+  color: #ffffff;
+}
+
+[data-theme="light"] .toast.toast-error {
+  background-color: #fef2f2;
+}
+
+[data-theme="light"] .toast.toast-success {
+  background-color: #ecfdf5;
 }
 
 /* Main Content Area */

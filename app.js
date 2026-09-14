@@ -179,7 +179,10 @@
     progressPages: document.getElementById('progressPages'),
     
     // Toast Container
-    toastContainer: document.getElementById('toastContainer')
+    toastContainer: document.getElementById('toastContainer'),
+
+    // Theme Toggle
+    btnThemeToggle: document.getElementById('btnThemeToggle')
   };
 
   let sortableInstance = null;
@@ -187,6 +190,7 @@
 
   // --- Initialization ---
   function init() {
+    initTheme();
     setupEventListeners();
     setupSortable();
     syncUI();
@@ -377,6 +381,48 @@
         }
       });
     }
+
+    // Theme Toggle (Dark / Light)
+    if (el.btnThemeToggle) {
+      el.btnThemeToggle.addEventListener('click', () => {
+        toggleTheme();
+      });
+    }
+  }
+
+  // --- Theme Management ---
+  function getEffectiveTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+  }
+
+  function applyTheme(theme) {
+    const validTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', validTheme);
+    try {
+      localStorage.setItem('pdf-lab-theme', validTheme);
+    } catch (_) {}
+
+    if (el.btnThemeToggle) {
+      const isLight = validTheme === 'light';
+      const label = isLight ? 'เปลี่ยนเป็นโหมดมืด' : 'เปลี่ยนเป็นโหมดสว่าง';
+      el.btnThemeToggle.setAttribute('aria-label', label);
+      el.btnThemeToggle.setAttribute('title', `${label} (สลับโหมดมืด/สว่าง)`);
+      el.btnThemeToggle.setAttribute('aria-pressed', String(isLight));
+    }
+  }
+
+  function toggleTheme() {
+    const current = getEffectiveTheme();
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+  }
+
+  function initTheme() {
+    let saved = 'dark';
+    try {
+      saved = localStorage.getItem('pdf-lab-theme') || 'dark';
+    } catch (_) {}
+    applyTheme(saved);
   }
 
   // --- SortableJS Initialization ---
@@ -1198,7 +1244,10 @@
     hideProgressModal,
     updateProgress,
     formatFileSize,
-    escapeHtml
+    escapeHtml,
+    applyTheme,
+    toggleTheme,
+    getEffectiveTheme
   };
 
   // Start app on DOM ready
