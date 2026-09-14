@@ -201,12 +201,14 @@
             
             <!-- Floating drop overlay for dragging files into workspace -->
             <div class="workspace-drop-overlay" id="workspaceDropOverlay">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <p>ปล่อยรูปภาพที่นี่เพื่อเพิ่มเข้ารายการ</p>
+              <div class="workspace-drop-overlay-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p>ปล่อยรูปภาพที่นี่เพื่อเพิ่มเข้ารายการ</p>
+              </div>
             </div>
           </div>
         </div>
@@ -408,6 +410,7 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 

@@ -116,48 +116,61 @@
     // Rotate All
     el.btnRotateAll.addEventListener('click', handleRotateAll);
 
-    // Drag & Drop on Initial Drop Zone
-    ['dragenter', 'dragover'].forEach(eventName => {
-      el.initialDropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        el.initialDropZone.classList.add('drag-active');
-      });
-    });
+    // Helper to distinguish OS file drag vs internal card reorder drag
+    function isFileDrag(e) {
+      if (!e.dataTransfer || !e.dataTransfer.types) return false;
+      const types = Array.from(e.dataTransfer.types);
+      return types.includes('Files') || types.includes('application/x-moz-file');
+    }
 
-    ['dragleave', 'drop'].forEach(eventName => {
-      el.initialDropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        el.initialDropZone.classList.remove('drag-active');
-      });
-    });
+    let dragDepth = 0;
 
-    el.initialDropZone.addEventListener('drop', (e) => {
-      if (e.dataTransfer && e.dataTransfer.files) {
-        handleFiles(Array.from(e.dataTransfer.files));
-      }
-    });
-
-    // Drag & Drop onto entire window/workspace
-    window.addEventListener('dragover', (e) => {
+    // Window-level File Drag & Drop (Works on initial screen & active workspace)
+    window.addEventListener('dragenter', (e) => {
+      if (!isFileDrag(e)) return;
       e.preventDefault();
+      e.stopPropagation();
+      dragDepth++;
       if (state.items.length > 0) {
         el.workspaceDropArea.classList.add('drag-over');
+      } else {
+        el.initialDropZone.classList.add('drag-active');
       }
     });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-      window.addEventListener(eventName, (e) => {
-        if (e.relatedTarget === null || eventName === 'drop') {
-          el.workspaceDropArea.classList.remove('drag-over');
-        }
-      });
+    window.addEventListener('dragover', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        e.dataTransfer.dropEffect = 'copy';
+      } catch (_) {}
+      if (state.items.length > 0) {
+        el.workspaceDropArea.classList.add('drag-over');
+      } else {
+        el.initialDropZone.classList.add('drag-active');
+      }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        el.workspaceDropArea.classList.remove('drag-over');
+        el.initialDropZone.classList.remove('drag-active');
+      }
     });
 
     window.addEventListener('drop', (e) => {
+      if (!isFileDrag(e)) return;
       e.preventDefault();
+      e.stopPropagation();
+      dragDepth = 0;
       el.workspaceDropArea.classList.remove('drag-over');
+      el.initialDropZone.classList.remove('drag-active');
+
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         handleFiles(Array.from(e.dataTransfer.files));
       }
@@ -206,11 +219,18 @@
   // --- SortableJS Initialization ---
   function setupSortable() {
     if (window.Sortable && el.thumbnailGrid) {
+      if (sortableInstance) {
+        sortableInstance.destroy();
+      }
       sortableInstance = new Sortable(el.thumbnailGrid, {
         animation: 180,
-        handle: '.card-preview-container',
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
+        filter: '.card-action-btn, .reorder-btn, button, input, select, svg, path',
+        preventOnFilter: false,
+        fallbackOnBody: true,
+        swapThreshold: 0.65,
+        touchStartThreshold: 3,
         onEnd: function(evt) {
           if (evt.oldIndex !== evt.newIndex) {
             const [movedItem] = state.items.splice(evt.oldIndex, 1);
@@ -392,6 +412,7 @@
         const card = createCardElement(item, index);
         el.thumbnailGrid.appendChild(card);
       });
+      setupSortable();
     } else {
       // Just update existing card badges and indices for performance
       const cards = el.thumbnailGrid.querySelectorAll('.thumb-card');
@@ -432,7 +453,7 @@
       </div>
       
       <div class="card-preview-container" title="ลากเพื่อสลับลำดับ">
-        <img class="card-preview-img" src="${item.objectUrl}" alt="${escapeHtml(item.name)}" style="transform: rotate(${item.rotation}deg);">
+        <img class="card-preview-img" src="${item.objectUrl}" alt="${escapeHtml(item.name)}" draggable="false" style="transform: rotate(${item.rotation}deg);">
       </div>
 
       <div class="card-meta">
@@ -896,5 +917,6 @@
   }
 
 })();
+
 
 

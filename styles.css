@@ -533,6 +533,11 @@ button, input, select, textarea {
   position: relative;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
   user-select: none;
+  cursor: grab;
+}
+
+.thumb-card:active {
+  cursor: grabbing;
 }
 
 .thumb-card:hover {
@@ -626,6 +631,9 @@ button, input, select, textarea {
   object-fit: contain;
   transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
   pointer-events: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+  user-select: none;
 }
 
 /* Metadata Footer */
@@ -691,27 +699,41 @@ button, input, select, textarea {
 .workspace-drop-overlay {
   position: absolute;
   inset: 0;
-  background-color: rgba(15, 17, 19, 0.88);
+  background-color: rgba(15, 17, 19, 0.82);
   border: 3px dashed var(--accent-amber);
   border-radius: var(--radius-lg);
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 16px;
+  padding-top: 40px;
   color: var(--accent-amber);
-  font-size: 18px;
-  font-weight: 600;
   opacity: 0;
-  pointer-events: none;
+  pointer-events: none !important;
   transition: opacity var(--transition-fast);
   z-index: 50;
   backdrop-filter: blur(4px);
 }
 
+.workspace-drop-overlay-content {
+  position: sticky;
+  top: 35vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background-color: rgba(27, 30, 34, 0.95);
+  border: 1px solid var(--accent-amber);
+  padding: 24px 36px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  font-size: 18px;
+  font-weight: 600;
+  pointer-events: none !important;
+}
+
 .workspace-canvas.drag-over .workspace-drop-overlay {
   opacity: 1;
-  pointer-events: auto;
 }
 
 /* ==========================================================================
@@ -1268,4 +1290,5 @@ button, input, select, textarea {
     width: 100% !important;
   }
 }
+
 
