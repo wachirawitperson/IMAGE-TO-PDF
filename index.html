@@ -900,11 +900,13 @@
 
               <div class="setting-group" id="groupImgQuality">
                 <label class="setting-label" for="pdfToImgQuality">คุณภาพรูปภาพ (JPG)</label>
-                <select id="pdfToImgQuality" class="select-control">
-                  <option value="0.8">ปานกลาง (80%) - ขนาดไฟล์กะทัดรัด</option>
-                  <option value="0.9" selected>สูง (90%) - คมชัดสมดุล</option>
-                  <option value="1.0">สูงสุด (100%) - คมชัดที่สุด</option>
-                </select>
+                <div class="select-wrapper">
+                  <select id="pdfToImgQuality" class="select-control">
+                    <option value="0.8">ปานกลาง (80%) - ขนาดไฟล์กะทัดรัด</option>
+                    <option value="0.9" selected>สูง (90%) - คมชัดสมดุล</option>
+                    <option value="1.0">สูงสุด (100%) - คมชัดที่สุด</option>
+                  </select>
+                </div>
               </div>
 
               <div class="summary-card-box">
@@ -1009,11 +1011,13 @@
 
               <div class="setting-group">
                 <label class="setting-label" for="pageNumFormat">รูปแบบการแสดงเลขหน้า</label>
-                <select id="pageNumFormat" class="select-control">
-                  <option value="plain" selected>1, 2, 3... (เฉพาะตัวเลข)</option>
-                  <option value="thai-prefix">หน้า 1, หน้า 2, หน้า 3... (คำนำหน้า "หน้า")</option>
-                  <option value="page-total">1 / {total} (เลขหน้า / หน้าทั้งหมด)</option>
-                </select>
+                <div class="select-wrapper">
+                  <select id="pageNumFormat" class="select-control">
+                    <option value="plain" selected>1, 2, 3... (เฉพาะตัวเลข)</option>
+                    <option value="thai-prefix">หน้า 1, หน้า 2, หน้า 3... (คำนำหน้า "หน้า")</option>
+                    <option value="page-total">1 / {total} (เลขหน้า / หน้าทั้งหมด)</option>
+                  </select>
+                </div>
               </div>
 
               <div class="setting-group">
@@ -1112,11 +1116,13 @@
 
               <div class="setting-group">
                 <label class="setting-label" for="ocrLanguage">ภาษาของเอกสาร</label>
-                <select id="ocrLanguage" class="select-control">
-                  <option value="eng" selected>ภาษาอังกฤษ (English)</option>
-                  <option value="tha">ภาษาไทย (Thai)</option>
-                  <option value="eng+tha">ภาษาอังกฤษ + ไทย (English + Thai)</option>
-                </select>
+                <div class="select-wrapper">
+                  <select id="ocrLanguage" class="select-control">
+                    <option value="eng" selected>ภาษาอังกฤษ (English)</option>
+                    <option value="tha">ภาษาไทย (Thai)</option>
+                    <option value="eng+tha">ภาษาอังกฤษ + ไทย (English + Thai)</option>
+                  </select>
+                </div>
               </div>
 
               <!-- Live Progress Card -->

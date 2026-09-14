@@ -1369,10 +1369,43 @@ button, input, select, textarea {
   position: relative;
 }
 
-.select-wrapper select {
+.select-wrapper select,
+.select-control {
+  width: 100%;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
   appearance: none;
   padding-right: 36px;
   cursor: pointer;
+}
+
+.select-control:hover,
+.select-wrapper select:hover {
+  border-color: var(--border-strong);
+}
+
+.select-control:focus,
+.select-wrapper select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-amber-glow);
+}
+
+/* Ensure dropdown options have clean readable black text on native OS dropdown menus */
+select option {
+  background-color: #ffffff;
+  color: #000000 !important;
+  padding: 8px 12px;
+}
+
+[data-theme="light"] select option {
+  background-color: #ffffff;
+  color: #000000 !important;
 }
 
 .select-wrapper::after {
@@ -1387,6 +1420,53 @@ button, input, select, textarea {
   border-right: 5px solid transparent;
   border-top: 5px solid var(--text-secondary);
   pointer-events: none;
+}
+
+/* Input Text Controls across all tools */
+.input-text {
+  width: 100%;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+
+.input-text:hover {
+  border-color: var(--border-strong);
+}
+
+.input-text:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-amber-glow);
+}
+
+.filename-input-wrap {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.filename-input-wrap .input-text {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.file-ext {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-surface-active);
+  border: 1px solid var(--border-subtle);
+  border-left: none;
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* Segmented Control */
