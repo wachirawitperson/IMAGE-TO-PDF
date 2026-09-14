@@ -1,0 +1,413 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IMAGE → PDF | แปลงรูปภาพเป็น PDF บนเบราว์เซอร์</title>
+  <meta name="description" content="แปลงรูปภาพเป็นเอกสาร PDF ในเครื่องของคุณ 100% รวดเร็ว ปลอดภัย ไม่ส่งไฟล์ขึ้นเซิร์ฟเวอร์ รองรับ JPG, PNG, WebP, BMP, HEIC">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Crect width='24' height='24' rx='6' fill='%231b1e22'/%3E%3Ctext x='12' y='17' font-size='12' text-anchor='middle' fill='%23f59e0b' font-weight='bold' font-family='sans-serif'%3EPDF%3C/text%3E%3C/svg%3E">
+
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Vendor libraries (Local-only, self-contained) -->
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="vendor/Sortable.min.js"></script>
+  <script src="vendor/heic2any.min.js"></script>
+</head>
+<body>
+  <!-- App Container -->
+  <div class="app-layout" id="app">
+    
+    <!-- Top Navigation Header -->
+    <header class="top-nav" role="banner">
+      <div class="nav-brand">
+        <div class="logo-mark" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span class="arrow">→</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <h1 class="product-title">IMAGE → PDF</h1>
+          <p class="product-subtitle">รวมรูปภาพเป็นไฟล์ PDF ได้อย่างง่ายดาย</p>
+        </div>
+      </div>
+      
+      <!-- Header Actions (Visible when items > 0) -->
+      <div class="header-actions hidden" id="headerActions">
+        <span class="file-count-badge" id="fileCountBadge" aria-live="polite">0 รูป</span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnAddMoreTop" aria-label="เพิ่มรูปภาพ">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span class="hide-mobile">เพิ่มรูปภาพ</span>
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearAll" title="ล้างรูปภาพทั้งหมด">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          <span class="hide-mobile">ล้างทั้งหมด</span>
+        </button>
+      </div>
+      
+      <!-- Privacy Pill -->
+      <div class="privacy-pill">
+        <span class="dot-live"></span>
+        <span>Local 100% • ไม่ส่งข้อมูลออก</span>
+      </div>
+    </header>
+
+    <!-- Global Hidden File Input -->
+    <input 
+      type="file" 
+      id="fileInput" 
+      multiple 
+      accept="image/jpeg,image/png,image/webp,image/bmp,image/heic,image/heif,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" 
+      class="visually-hidden" 
+      tabindex="-1"
+      aria-label="เลือกไฟล์รูปภาพ"
+    >
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="mainContent">
+      
+      <!-- STATE 1: Initial Upload Screen -->
+      <section class="upload-screen" id="uploadScreen" aria-labelledby="uploadHeading">
+        <div class="upload-card">
+          <div class="drop-zone" id="initialDropZone" role="button" tabindex="0" aria-label="คลิกหรือลากรูปภาพมาวางที่นี่เพื่ออัปโหลด">
+            <div class="drop-zone-icon-wrapper">
+              <svg class="upload-cloud-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            
+            <h2 id="uploadHeading" class="drop-title">ลากรูปภาพมาวางที่นี่</h2>
+            <p class="drop-desc">รองรับ JPG, PNG, WebP, BMP, HEIC</p>
+            
+            <div class="drop-divider">
+              <span>หรือ</span>
+            </div>
+            
+            <button type="button" class="btn btn-primary btn-lg" id="btnSelectInitial">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>+ เลือกรูปภาพ</span>
+            </button>
+            
+            <div class="drop-hints">
+              <span class="hint-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                เลือกหลายไฟล์พร้อมกัน
+              </span>
+              <span class="hint-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                ลากเพื่อเรียงลำดับ
+              </span>
+              <span class="hint-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                วางรูปจาก Clipboard (Ctrl + V)
+              </span>
+            </div>
+          </div>
+          
+          <!-- Privacy & Feature Pillars -->
+          <div class="features-grid">
+            <div class="feature-item">
+              <div class="feature-icon" aria-hidden="true">🔒</div>
+              <div class="feature-text">
+                <h3>ปลอดภัย 100% ในเครื่อง</h3>
+                <p>ไฟล์ภาพไม่ถูกอัปโหลดขึ้นเซิร์ฟเวอร์ ทุกอย่างประมวลผลบนเบราว์เซอร์ของคุณ</p>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon" aria-hidden="true">⚡</div>
+              <div class="feature-text">
+                <h3>ไม่จำกัดจำนวนไฟล์</h3>
+                <p>ไม่มีโควต้าเทียม แปลงกี่รูปก็ได้ตามขีดความสามารถของหน่วยความจำเครื่อง</p>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon" aria-hidden="true">📱</div>
+              <div class="feature-text">
+                <h3>รองรับไฟล์ HEIC จาก iPhone</h3>
+                <p>ถอดรหัสรูปถ่ายจาก Apple iPhone เป็น PDF ได้โดยตรงในเครื่อง ไม่ต้องพึ่งแอปอื่น</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STATE 2: Editor / Workspace Screen -->
+      <section class="workspace-screen hidden" id="workspaceScreen">
+        
+        <!-- Left: Image Workspace Panel -->
+        <div class="workspace-left">
+          <div class="workspace-toolbar">
+            <div class="toolbar-info">
+              <h2 class="section-title">รูปภาพทั้งหมด</h2>
+              <span class="section-subtitle" id="workspaceCountText">รูปภาพที่เลือก (0 รูป)</span>
+            </div>
+            <div class="toolbar-actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnAddMoreWorkspace">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>+ เพิ่มรูปภาพ</span>
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnRotateAll" title="หมุนทุกรูป 90°">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+                <span>หมุนทั้งหมด</span>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Drag to Reorder Hint Banner -->
+          <div class="reorder-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/>
+              <circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>
+            </svg>
+            <span>ลากรูปภาพเพื่อจัดเรียงลำดับหน้า PDF ตามต้องการ (ลำดับนี้คือลำดับหน้าในไฟล์ PDF จริง)</span>
+          </div>
+          
+          <!-- Workspace Drop/Grid Zone -->
+          <div class="workspace-canvas" id="workspaceDropArea">
+            <div class="thumbnail-grid" id="thumbnailGrid" role="list" aria-label="รายการรูปภาพสำหรับสร้าง PDF">
+              <!-- Dynamically populated thumbnail cards -->
+            </div>
+            
+            <!-- Floating drop overlay for dragging files into workspace -->
+            <div class="workspace-drop-overlay" id="workspaceDropOverlay">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p>ปล่อยรูปภาพที่นี่เพื่อเพิ่มเข้ารายการ</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: PDF Settings Sidebar Panel -->
+        <aside class="workspace-right" aria-label="การตั้งค่าเอกสาร PDF">
+          <div class="settings-card">
+            <div class="settings-header">
+              <div class="settings-title-group">
+                <h2 class="settings-title">การตั้งค่า PDF</h2>
+                <p class="settings-subtitle">PDF Settings & Output Options</p>
+              </div>
+            </div>
+
+            <form class="settings-form" id="settingsForm" onsubmit="event.preventDefault();">
+              
+              <!-- Paper Size -->
+              <div class="setting-group">
+                <label for="settingPaper" class="setting-label">
+                  <span>ขนาดกระดาษ (Paper Size)</span>
+                </label>
+                <div class="select-wrapper">
+                  <select id="settingPaper" class="form-control">
+                    <option value="A4" selected>A4 (210 × 297 mm) — แนะนำ</option>
+                    <option value="A3">A3 (297 × 420 mm)</option>
+                    <option value="A5">A5 (148 × 210 mm)</option>
+                    <option value="Letter">US Letter (8.5 × 11 in)</option>
+                    <option value="Legal">US Legal (8.5 × 14 in)</option>
+                    <option value="Original">Original (ตามสัดส่วนภาพจริง)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Orientation -->
+              <div class="setting-group">
+                <label class="setting-label">
+                  <span>การจัดวางหน้า (Orientation)</span>
+                </label>
+                <div class="segmented-control" role="radiogroup" aria-label="Orientation">
+                  <label class="segment-btn">
+                    <input type="radio" name="orientation" value="auto" checked>
+                    <span class="segment-label">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                      Auto
+                    </span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="orientation" value="portrait">
+                    <span class="segment-label">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>
+                      แนวตั้ง
+                    </span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="orientation" value="landscape">
+                    <span class="segment-label">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg>
+                      แนวนอน
+                    </span>
+                  </label>
+                </div>
+                <small class="setting-hint">Auto ปรับแนวตั้ง/แนวนอนอัตโนมัติตามรูปทรงของแต่ละรูป</small>
+              </div>
+
+              <!-- Image Placement -->
+              <div class="setting-group">
+                <label class="setting-label">
+                  <span>รูปแบบการวางรูป (Image Placement)</span>
+                </label>
+                <div class="segmented-control" role="radiogroup" aria-label="Image Placement">
+                  <label class="segment-btn">
+                    <input type="radio" name="placement" value="fit" checked>
+                    <span class="segment-label">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+                      Fit (พอดีหน้า)
+                    </span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="placement" value="fill">
+                    <span class="segment-label">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+                      Fill (เต็มหน้า)
+                    </span>
+                  </label>
+                </div>
+                <small class="setting-hint">Fit: ไม่ตัดขอบรูปภาพใดๆ • Fill: ขยายเต็มหน้ากระดาษ (อาจครอป)</small>
+              </div>
+
+              <!-- Margins -->
+              <div class="setting-group">
+                <label class="setting-label">
+                  <span>ระยะขอบกระดาษ (Page Margins)</span>
+                </label>
+                <div class="segmented-control" role="radiogroup" aria-label="Page Margins">
+                  <label class="segment-btn">
+                    <input type="radio" name="margin" value="none" checked>
+                    <span class="segment-label">ไม่มีขอบ</span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="margin" value="small">
+                    <span class="segment-label">ขอบเล็ก</span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="margin" value="large">
+                    <span class="segment-label">ขอบกว้าง</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Quality -->
+              <div class="setting-group">
+                <label class="setting-label">
+                  <span>คุณภาพไฟล์ (Quality & Size)</span>
+                </label>
+                <div class="segmented-control" role="radiogroup" aria-label="Quality">
+                  <label class="segment-btn">
+                    <input type="radio" name="quality" value="small">
+                    <span class="segment-label">ขนาดเล็ก</span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="quality" value="balanced" checked>
+                    <span class="segment-label">สมดุล (แนะนำ)</span>
+                  </label>
+                  <label class="segment-btn">
+                    <input type="radio" name="quality" value="high">
+                    <span class="segment-label">ความคมชัดสูง</span>
+                  </label>
+                </div>
+                <small class="setting-hint">สมดุล: ไฟล์ขนาดเหมาะสมและคมชัดสำหรับการพิมพ์/ส่งงาน</small>
+              </div>
+
+              <!-- Filename -->
+              <div class="setting-group">
+                <label for="settingFilename" class="setting-label">
+                  <span>ชื่อไฟล์ PDF (File Name)</span>
+                </label>
+                <div class="input-addon-group">
+                  <input type="text" id="settingFilename" class="form-control" value="images-to-pdf" placeholder="images-to-pdf">
+                  <span class="addon-suffix">.pdf</span>
+                </div>
+              </div>
+
+              <!-- Primary Action CTA Button -->
+              <div class="action-box">
+                <button type="button" class="btn btn-primary btn-cta" id="btnCreatePdf">
+                  <span class="btn-cta-content">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span class="cta-text-main">สร้าง PDF</span>
+                  </span>
+                  <span class="cta-text-sub" id="btnCtaSubtext">แปลง 0 รูปภาพ</span>
+                </button>
+              </div>
+
+              <!-- Local Guarantee Card -->
+              <div class="privacy-guarantee">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <p>ไม่มีการส่งไฟล์ใดๆ ออกนอกเครื่อง ประมวลผลในหน่วยความจำเบราว์เซอร์เท่านั้น</p>
+              </div>
+
+            </form>
+          </div>
+        </aside>
+
+      </section>
+
+    </main>
+
+    <!-- Processing / Progress Modal Overlay -->
+    <div class="modal-backdrop hidden" id="progressModal" role="dialog" aria-modal="true" aria-labelledby="progressTitle">
+      <div class="modal-card">
+        <div class="spinner" aria-hidden="true"></div>
+        <h3 class="modal-title" id="progressTitle">กำลังสร้างเอกสาร PDF...</h3>
+        <p class="modal-desc" id="progressMessage" aria-live="polite">กำลังเตรียมข้อมูล...</p>
+        
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+        </div>
+        
+        <div class="progress-stats">
+          <span id="progressPercent">0%</span>
+          <span id="progressPages">0 / 0 หน้า</span>
+        </div>
+        
+        <p class="modal-footnote">การประมวลผลกระทำภายในเครื่องของคุณ ไม่มีการใช้เซิร์ฟเวอร์</p>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+
+
