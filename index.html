@@ -281,7 +281,7 @@
     <input type="file" id="fileInputOrganize" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับจัดหน้า">
     <input type="file" id="fileInputPdfToImg" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับแปลงเป็นรูปภาพ">
     <input type="file" id="fileInputPageNum" accept=".pdf,application/pdf" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF สำหรับใส่เลขหน้า">
-    <input type="file" id="fileInputOcr" accept=".pdf,application/pdf,image/jpeg,image/png,image/webp" class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF หรือรูปภาพสำหรับทำ OCR">
+    <input type="file" id="fileInputOcr" accept=".pdf,application/pdf,image/jpeg,image/png,image/webp,image/bmp,.heic,.heif,image/heic,image/heif" multiple class="visually-hidden" tabindex="-1" aria-label="เลือกไฟล์ PDF หรือรูปภาพสำหรับทำ OCR">
 
     <!-- Main Content Area -->
     <main class="main-content" id="mainContent">
@@ -1056,8 +1056,8 @@
                   <line x1="12" y1="9" x2="12" y2="15"/>
                 </svg>
               </div>
-              <h2 id="ocrHeading" class="drop-title">ลากไฟล์ PDF หรือรูปภาพสแกนมาวางที่นี่</h2>
-              <p class="drop-desc">สแกนและแปลงข้อความในรูปภาพหรือ PDF ให้เป็นตัวหนังสือที่ค้นหาและคัดลอกได้</p>
+              <h2 id="ocrHeading" class="drop-title">ลาก PDF หรือรูปภาพมาวางที่นี่</h2>
+              <p class="drop-desc">รองรับไฟล์ PDF, JPG, PNG, WebP, BMP และ HEIC • สแกนข้อความในเครื่อง 100%</p>
               <div class="drop-divider"><span>หรือ</span></div>
               <button type="button" class="btn btn-primary btn-lg" id="btnSelectOcrFile">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1074,6 +1074,7 @@
               <div class="toolbar-left">
                 <span class="file-count-badge" id="ocrFileBadge">0 หน้า</span>
                 <span id="ocrStatusBadge" class="badge-status">พร้อมทำ OCR</span>
+                <span id="ocrConfidenceBadge" class="badge-status badge-success hidden">ความแม่นยำ 0%</span>
               </div>
               <div class="toolbar-right">
                 <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearOcr" title="เปลี่ยนไฟล์">
@@ -1090,7 +1091,10 @@
             <!-- OCR Results Box -->
             <div class="ocr-results-box hidden" id="ocrResultsBox">
               <div class="ocr-results-header">
-                <h4 class="ocr-results-title">ผลลัพธ์ข้อความจากการ OCR (Extracted Text)</h4>
+                <div>
+                  <h4 class="ocr-results-title">✓ ผลลัพธ์ข้อความจากการ OCR (Extracted Text)</h4>
+                  <p class="ocr-results-subtitle" id="ocrConfidenceSummary">อ่านแล้ว 0 / 0 หน้า • ความแม่นยำรวม 0%</p>
+                </div>
                 <div class="ocr-actions-row">
                   <button type="button" class="btn btn-secondary btn-sm" id="btnOcrCopy" title="คัดลอกข้อความทั้งหมด">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -1100,13 +1104,14 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     <span>ดาวน์โหลด .txt</span>
                   </button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btnOcrDownloadPdf" title="ดาวน์โหลดเป็น PDF พร้อมข้อความ">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnOcrDownloadPdf" title="ดาวน์โหลดเป็น Searchable PDF ที่ค้นหาและเลือกข้อความได้">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span>ดาวน์โหลด PDF พร้อมข้อความ</span>
+                    <span>ดาวน์โหลด Searchable PDF</span>
                   </button>
                 </div>
               </div>
               <textarea id="ocrExtractedText" class="ocr-textarea" rows="10" readonly placeholder="ข้อความที่สแกนได้จะปรากฏที่นี่..."></textarea>
+              <div id="ocrPageTextContainer" class="ocr-pages-container hidden"></div>
             </div>
           </div>
 
@@ -1118,11 +1123,30 @@
                 <label class="setting-label" for="ocrLanguage">ภาษาของเอกสาร</label>
                 <div class="select-wrapper">
                   <select id="ocrLanguage" class="select-control">
-                    <option value="eng" selected>ภาษาอังกฤษ (English)</option>
+                    <option value="tha+eng" selected>ไทย + English (ค่าเริ่มต้น)</option>
                     <option value="tha">ภาษาไทย (Thai)</option>
-                    <option value="eng+tha">ภาษาอังกฤษ + ไทย (English + Thai)</option>
+                    <option value="eng">English (ภาษาอังกฤษ)</option>
                   </select>
                 </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label">ตัวเลือกการประมวลผล</label>
+                <div class="checkbox-options-stack">
+                  <label class="setting-checkbox-label" for="ocrPreprocess">
+                    <input type="checkbox" id="ocrPreprocess" class="checkbox-control">
+                    <span>ปรับภาพก่อน OCR (ช่วยเพิ่มความแม่นยำ)</span>
+                  </label>
+                  <label class="setting-checkbox-label" for="ocrSearchablePdf">
+                    <input type="checkbox" id="ocrSearchablePdf" class="checkbox-control" checked>
+                    <span>สร้าง Searchable PDF (ค้นหา/เลือกข้อความได้)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label class="setting-label" for="ocrOutputFilename">ชื่อไฟล์ผลลัพธ์</label>
+                <input type="text" id="ocrOutputFilename" class="text-input" placeholder="document-ocr.pdf" aria-label="ชื่อไฟล์ผลลัพธ์">
               </div>
 
               <!-- Live Progress Card -->
@@ -1138,21 +1162,24 @@
                   <span id="ocrProgressPercent">0%</span>
                   <span id="ocrProgressPages">0 / 0 หน้า</span>
                 </div>
+                <button type="button" class="btn btn-ghost btn-sm text-danger btn-block" id="btnCancelOcr" style="margin-top: 8px; border: 1px solid rgba(239, 68, 68, 0.35);">
+                  <span>ยกเลิกการทำ OCR</span>
+                </button>
               </div>
 
               <div class="action-box">
                 <button type="button" class="btn btn-primary btn-block btn-lg" id="btnExecuteOcr">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <span>เริ่มทำ OCR</span>
+                  <span>เริ่มสแกน OCR</span>
                 </button>
                 <p class="action-subtext">ประมวลผลผ่าน WebAssembly ในเครื่อง 100%</p>
               </div>
 
               <div class="privacy-callout-card">
                 <div class="privacy-callout-header">
-                  <span>🔒 ความเป็นส่วนตัวสูงสุด</span>
+                  <span>🔒 ประมวลผลในเครื่อง 100%</span>
                 </div>
-                <p>การตรวจจับตัวอักษรทำงานในเบราว์เซอร์ของคุณโดยตรง เอกสารจะไม่ถูกอัปโหลดขึ้นเซิร์ฟเวอร์ใด ๆ ทั้งสิ้น</p>
+                <p>ไฟล์ของคุณไม่ถูกอัปโหลดขึ้นเซิร์ฟเวอร์ การตรวจจับข้อความและสร้าง Searchable PDF ทำงานในเบราว์เซอร์ของคุณโดยตรง</p>
               </div>
             </div>
           </aside>

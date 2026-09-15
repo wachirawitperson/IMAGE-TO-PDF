@@ -1357,14 +1357,23 @@
   }
 
   // ==========================================================================
-  // TOOL 7: OCR PDF (Tesseract.js Local Client-Side OCR)
+  // TOOL 7: OCR PDF & IMAGE (Tesseract.js Local Client-Side OCR & Searchable PDF)
   // ==========================================================================
   const ocrState = {
-    file: null,
+    mode: 'pdf', // 'pdf' or 'images'
+    files: [],
+    file: null, // primary file for backwards compatibility
     buffer: null,
     isPdf: true,
+    pages: [], // array of { id, pageNum, file, previewUrl, width, height, text, confidence, pdfBytes, hasExistingText }
     totalPages: 0,
-    extractedText: ''
+    extractedText: '',
+    overallConfidence: 0,
+    isProcessing: false,
+    cancelRequested: false,
+    activeWorker: null,
+    searchablePdfBytes: null,
+    outputFilename: ''
   };
 
   function initOcrTool() {
@@ -1373,9 +1382,11 @@
     const btnSelect = document.getElementById('btnSelectOcrFile');
     const btnClear = document.getElementById('btnClearOcr');
     const btnExecute = document.getElementById('btnExecuteOcr');
+    const btnCancel = document.getElementById('btnCancelOcr');
     const btnCopy = document.getElementById('btnOcrCopy');
     const btnDownloadTxt = document.getElementById('btnOcrDownloadTxt');
     const btnDownloadPdf = document.getElementById('btnOcrDownloadPdf');
+    const filenameInput = document.getElementById('ocrOutputFilename');
 
     if (!fileInput || !dropZone) return;
 
@@ -1386,20 +1397,24 @@
     });
 
     fileInput.addEventListener('change', async (e) => {
-      const file = (e.target.files || [])[0];
-      if (file) await handleOcrFile(file);
+      const files = Array.from(e.target.files || []);
+      if (files.length > 0) await handleOcrFiles(files);
       fileInput.value = '';
     });
 
     setupDropZoneEvents(dropZone, async (files) => {
-      if (files[0]) await handleOcrFile(files[0]);
+      if (files && files.length > 0) await handleOcrFiles(files);
     });
 
     btnClear?.addEventListener('click', () => {
-      ocrState.file = null;
-      ocrState.buffer = null;
-      ocrState.extractedText = '';
+      clearOcrState();
       renderOcrUI();
+    });
+
+    btnCancel?.addEventListener('click', cancelOcr);
+
+    filenameInput?.addEventListener('input', (e) => {
+      ocrState.outputFilename = e.target.value.trim();
     });
 
     btnCopy?.addEventListener('click', () => {
@@ -1418,51 +1433,292 @@
     btnDownloadTxt?.addEventListener('click', () => {
       if (!ocrState.extractedText) return;
       const blob = new Blob([ocrState.extractedText], { type: 'text/plain;charset=utf-8' });
-      downloadBlob(blob, 'ocr-extracted-text.txt');
+      let baseName = ocrState.outputFilename ? ocrState.outputFilename.replace(/\.pdf$/i, '') : 'ocr-extracted-text';
+      downloadBlob(blob, `${baseName}.txt`);
       showToast('ดาวน์โหลดไฟล์ .txt สำเร็จ', 'success');
     });
 
     btnDownloadPdf?.addEventListener('click', async () => {
-      if (!ocrState.extractedText) return;
-      await generateOcrPdf();
+      await downloadSearchablePdf();
     });
 
     btnExecute?.addEventListener('click', executeOcr);
   }
 
-  async function handleOcrFile(file) {
-    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-    const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name);
-
-    if (!isPdf && !isImage) {
-      showToast('รองรับไฟล์ PDF หรือรูปภาพ (JPG, PNG, WebP) เท่านั้น', 'error');
-      return;
+  function clearOcrState() {
+    if (ocrState.pages) {
+      ocrState.pages.forEach(p => {
+        if (p.previewUrl && p.previewUrl.startsWith('blob:')) {
+          try { URL.revokeObjectURL(p.previewUrl); } catch (_) {}
+        }
+      });
     }
+    ocrState.files = [];
+    ocrState.file = null;
+    ocrState.buffer = null;
+    ocrState.pages = [];
+    ocrState.totalPages = 0;
+    ocrState.extractedText = '';
+    ocrState.overallConfidence = 0;
+    ocrState.isProcessing = false;
+    ocrState.cancelRequested = false;
+    ocrState.searchablePdfBytes = null;
+    ocrState.outputFilename = '';
+  }
 
-    showProgressModal();
-    updateProgress(0, 1, 'กำลังโหลดเอกสารสำหรับ OCR...');
+  // --- HEIC Client-side Decoder ---
+  async function decodeHeicIfNecessary(file) {
+    const ext = (file.name || '').substring((file.name || '').lastIndexOf('.')).toLowerCase();
+    const isHeic = ext === '.heic' || ext === '.heif' || file.type === 'image/heic' || file.type === 'image/heif';
+    if (!isHeic) return file;
+
+    if (!window.heic2any) {
+      throw new Error(`เบราว์เซอร์ไม่รองรับ HEIC และไม่พบโมดูลถอดรหัสในเครื่องสำหรับไฟล์ "${file.name}"`);
+    }
 
     try {
-      ocrState.file = file;
-      ocrState.isPdf = isPdf;
-      ocrState.extractedText = '';
+      const converted = await window.heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.92
+      });
+      const jpegBlob = Array.isArray(converted) ? converted[0] : converted;
+      const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+      return new File([jpegBlob], newName, { type: 'image/jpeg' });
+    } catch (err) {
+      throw new Error(`ไม่สามารถถอดรหัสไฟล์ภาพ HEIC "${file.name}": ไฟล์อาจเสียหายหรือไม่สมบูรณ์`);
+    }
+  }
 
-      if (isPdf) {
-        const loaded = await loadPdfDocument(file);
+  // --- Helper: Load image file to HTMLCanvasElement ---
+  function loadImageToCanvas(fileOrBlob) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(fileOrBlob);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`ไม่สามารถโหลดรูปภาพ "${fileOrBlob.name || 'image'}": รูปแบบไฟล์ไม่ถูกต้องหรือรูปภาพเสียหาย`));
+      };
+      img.src = url;
+    });
+  }
+
+  // --- Image Preprocessing for OCR Accuracy ---
+  function preprocessImageForOcr(sourceCanvas) {
+    const width = sourceCanvas.width;
+    const height = sourceCanvas.height;
+    if (!width || !height) return sourceCanvas;
+
+    // Normalize resolution for optimal OCR (2000-2800px on long edge)
+    let targetWidth = width;
+    let targetHeight = height;
+    const maxDim = Math.max(width, height);
+    if (maxDim > 2800) {
+      const scale = 2800 / maxDim;
+      targetWidth = Math.round(width * scale);
+      targetHeight = Math.round(height * scale);
+    } else if (maxDim < 700) {
+      const scale = Math.min(2.5, 1400 / maxDim);
+      targetWidth = Math.round(width * scale);
+      targetHeight = Math.round(height * scale);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
+
+    const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+    const data = imgData.data;
+    const totalPixels = targetWidth * targetHeight;
+
+    // 1. Grayscale & compute histogram
+    const histogram = new Uint32Array(256);
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      data[i] = gray;
+      data[i + 1] = gray;
+      data[i + 2] = gray;
+      histogram[gray]++;
+    }
+
+    // 2. Contrast stretching (2nd to 98th percentile)
+    const lowBoundCount = totalPixels * 0.02;
+    const highBoundCount = totalPixels * 0.98;
+    let count = 0;
+    let minGray = 0;
+    let maxGray = 255;
+    for (let i = 0; i < 256; i++) {
+      count += histogram[i];
+      if (count >= lowBoundCount && minGray === 0) minGray = i;
+      if (count >= highBoundCount) {
+        maxGray = i;
+        break;
+      }
+    }
+
+    const range = maxGray - minGray;
+    if (range > 20) {
+      for (let i = 0; i < data.length; i += 4) {
+        let val = data[i];
+        if (val <= minGray) {
+          val = 0;
+        } else if (val >= maxGray) {
+          val = 255;
+        } else {
+          val = Math.round(((val - minGray) / range) * 255);
+        }
+        data[i] = val;
+        data[i + 1] = val;
+        data[i + 2] = val;
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    return canvas;
+  }
+
+  // --- Main OCR File / Files Handler ---
+  async function handleOcrFiles(fileList) {
+    const rawFiles = Array.from(fileList || []);
+    if (rawFiles.length === 0) return;
+
+    clearOcrState();
+    showProgressModal();
+    updateProgress(0, 1, 'กำลังตรวจสอบไฟล์เอกสาร...');
+
+    try {
+      const isFirstPdf = rawFiles[0].name.toLowerCase().endsWith('.pdf') || rawFiles[0].type === 'application/pdf';
+
+      if (isFirstPdf) {
+        // PDF Mode
+        const pdfFile = rawFiles[0];
+        updateProgress(0, 1, 'กำลังเปิดเอกสาร PDF และตรวจสอบข้อความ...');
+        const loaded = await loadPdfDocument(pdfFile);
+        ocrState.mode = 'pdf';
+        ocrState.isPdf = true;
+        ocrState.file = pdfFile;
+        ocrState.files = [pdfFile];
         ocrState.buffer = loaded.buffer;
         ocrState.totalPages = loaded.pageCount;
-      } else {
-        ocrState.buffer = await file.arrayBuffer();
-        ocrState.totalPages = 1;
-      }
 
-      hideProgressModal();
-      renderOcrUI();
-      showToast(`โหลดเอกสารสำหรับ OCR สำเร็จ (${ocrState.totalPages} หน้า)`, 'success');
+        // Inspect existing text in PDF
+        const loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(loaded.buffer.slice(0)) });
+        const pdfDoc = await loadingTask.promise;
+        const pages = [];
+
+        for (let i = 1; i <= loaded.pageCount; i++) {
+          const page = await pdfDoc.getPage(i);
+          let hasExistingText = false;
+          let initialText = '';
+          try {
+            const textContent = await page.getTextContent();
+            if (textContent.items && textContent.items.length > 0) {
+              const joined = textContent.items.map(it => it.str).join(' ').trim();
+              if (joined.length > 10) {
+                hasExistingText = true;
+                initialText = joined;
+              }
+            }
+          } catch (_) {}
+          page.cleanup();
+
+          pages.push({
+            id: `ocr-p-${i}`,
+            pageNum: i,
+            isPdfPage: true,
+            hasExistingText,
+            text: initialText,
+            confidence: null,
+            pdfBytes: null
+          });
+        }
+        await pdfDoc.destroy();
+        loadingTask.destroy();
+
+        ocrState.pages = pages;
+        const defaultName = pdfFile.name.replace(/\.pdf$/i, '') + '-ocr.pdf';
+        ocrState.outputFilename = defaultName;
+        const filenameInput = document.getElementById('ocrOutputFilename');
+        if (filenameInput) filenameInput.value = defaultName;
+
+        hideProgressModal();
+        renderOcrUI();
+        showToast(`โหลดเอกสาร PDF สำเร็จ (${ocrState.totalPages} หน้า)`, 'success');
+      } else {
+        // Images Mode
+        updateProgress(0, 1, 'กำลังเตรียมรูปภาพและถอดรหัสในเครื่อง...');
+        const pages = [];
+        const processedFiles = [];
+
+        for (let idx = 0; idx < rawFiles.length; idx++) {
+          const raw = rawFiles[idx];
+          const isImg = raw.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp|heic|heif)$/i.test(raw.name);
+          if (!isImg) continue;
+
+          updateProgress(idx, rawFiles.length, `กำลังเตรียมรูปภาพ (${idx + 1}/${rawFiles.length})...`);
+          const readyFile = await decodeHeicIfNecessary(raw);
+          processedFiles.push(readyFile);
+          const previewUrl = URL.createObjectURL(readyFile);
+
+          pages.push({
+            id: `ocr-img-${idx + 1}`,
+            pageNum: idx + 1,
+            isPdfPage: false,
+            file: readyFile,
+            previewUrl,
+            hasExistingText: false,
+            text: '',
+            confidence: null,
+            pdfBytes: null
+          });
+        }
+
+        if (pages.length === 0) {
+          throw new Error('ไม่พบไฟล์รูปภาพที่รองรับ (JPG, PNG, WebP, BMP, HEIC)');
+        }
+
+        ocrState.mode = 'images';
+        ocrState.isPdf = false;
+        ocrState.files = processedFiles;
+        ocrState.file = processedFiles[0];
+        ocrState.pages = pages;
+        ocrState.totalPages = pages.length;
+
+        const firstBaseName = processedFiles[0].name.substring(0, processedFiles[0].name.lastIndexOf('.')) || 'image';
+        const defaultName = (pages.length > 1 ? `${firstBaseName}-batch` : firstBaseName) + '-ocr.pdf';
+        ocrState.outputFilename = defaultName;
+        const filenameInput = document.getElementById('ocrOutputFilename');
+        if (filenameInput) filenameInput.value = defaultName;
+
+        hideProgressModal();
+        renderOcrUI();
+        showToast(`โหลดรูปภาพสำหรับ OCR สำเร็จ (${pages.length} ภาพ)`, 'success');
+      }
     } catch (err) {
       hideProgressModal();
+      clearOcrState();
+      renderOcrUI();
+      console.warn('handleOcrFiles error:', err);
       showToast(err.message || 'ไม่สามารถเปิดเอกสารได้', 'error');
     }
+  }
+
+  // Wrapper for backwards compatibility
+  async function handleOcrFile(file) {
+    await handleOcrFiles([file]);
   }
 
   function renderOcrUI() {
@@ -1470,18 +1726,22 @@
     const workspaceScreen = document.getElementById('ocrWorkspaceScreen');
     const grid = document.getElementById('ocrThumbnailGrid');
     const badge = document.getElementById('ocrFileBadge');
+    const statusBadge = document.getElementById('ocrStatusBadge');
+    const confBadge = document.getElementById('ocrConfidenceBadge');
     const resultsBox = document.getElementById('ocrResultsBox');
     const progressCard = document.getElementById('ocrProgressCard');
     const textArea = document.getElementById('ocrExtractedText');
+    const pageContainer = document.getElementById('ocrPageTextContainer');
 
     if (!uploadScreen || !workspaceScreen) return;
 
-    if (!ocrState.file) {
+    if (!ocrState.totalPages || ocrState.totalPages === 0) {
       uploadScreen.classList.remove('hidden');
       workspaceScreen.classList.add('hidden');
       if (grid) grid.innerHTML = '';
       if (resultsBox) resultsBox.classList.add('hidden');
       if (progressCard) progressCard.classList.add('hidden');
+      if (confBadge) confBadge.classList.add('hidden');
       return;
     }
 
@@ -1489,45 +1749,135 @@
     workspaceScreen.classList.remove('hidden');
 
     if (badge) badge.textContent = `${ocrState.totalPages} หน้า`;
-    if (resultsBox) resultsBox.classList.add('hidden');
-    if (progressCard) progressCard.classList.add('hidden');
-    if (textArea) textArea.value = '';
+    if (statusBadge) statusBadge.textContent = ocrState.overallConfidence > 0 ? '✓ สแกนแล้ว' : 'พร้อมทำ OCR';
+    if (confBadge) {
+      if (ocrState.overallConfidence > 0) {
+        confBadge.textContent = `ความแม่นยำรวม ${ocrState.overallConfidence}%`;
+        confBadge.classList.remove('hidden');
+      } else {
+        confBadge.classList.add('hidden');
+      }
+    }
+
+    if (!ocrState.extractedText && resultsBox) {
+      resultsBox.classList.add('hidden');
+    }
+    if (!ocrState.isProcessing && progressCard) {
+      progressCard.classList.add('hidden');
+    }
 
     if (grid) {
       grid.innerHTML = '';
-      for (let i = 1; i <= ocrState.totalPages; i++) {
+      ocrState.pages.forEach((pageItem, idx) => {
         const card = document.createElement('div');
         card.className = 'thumb-card';
+        card.id = `ocrCard-${pageItem.pageNum}`;
+
+        const confLabel = pageItem.confidence != null ? `ความแม่นยำ ${pageItem.confidence}%` : (pageItem.hasExistingText ? 'มีข้อความอยู่แล้ว' : '');
 
         card.innerHTML = `
           <div class="card-header">
-            <span class="page-badge">หน้า ${i}</span>
+            <span class="page-badge">หน้า ${pageItem.pageNum}</span>
           </div>
           <div class="card-preview-area">
             <div class="page-loading-skeleton">กำลังโหลดตัวอย่าง...</div>
           </div>
+          ${confLabel ? `<div class="ocr-card-confidence">${confLabel}</div>` : ''}
         `;
         grid.appendChild(card);
 
+        const previewArea = card.querySelector('.card-preview-area');
         if (ocrState.isPdf) {
-          renderPdfThumbnail(ocrState.buffer, i, 0.35).then(url => {
-            const previewArea = card.querySelector('.card-preview-area');
-            if (previewArea) previewArea.innerHTML = `<img src="${url}" alt="หน้า ${i}" class="card-preview-img">`;
+          renderPdfThumbnail(ocrState.buffer, pageItem.pageNum, 0.35).then(url => {
+            if (previewArea) previewArea.innerHTML = `<img src="${url}" alt="หน้า ${pageItem.pageNum}" class="card-preview-img">`;
           }).catch(() => {
-            const previewArea = card.querySelector('.card-preview-area');
-            if (previewArea) previewArea.innerHTML = `<span class="preview-err">หน้า ${i}</span>`;
+            if (previewArea) previewArea.innerHTML = `<span class="preview-err">หน้า ${pageItem.pageNum}</span>`;
           });
-        } else {
-          const blobUrl = URL.createObjectURL(ocrState.file);
-          const previewArea = card.querySelector('.card-preview-area');
-          if (previewArea) previewArea.innerHTML = `<img src="${blobUrl}" alt="รูปภาพ" class="card-preview-img">`;
+        } else if (pageItem.previewUrl) {
+          if (previewArea) previewArea.innerHTML = `<img src="${pageItem.previewUrl}" alt="รูปภาพหน้า ${pageItem.pageNum}" class="card-preview-img">`;
         }
-      }
+      });
     }
+
+    if (textArea) textArea.value = ocrState.extractedText || '';
+    renderPageTextReviews();
   }
 
+  function renderPageTextReviews() {
+    const pageContainer = document.getElementById('ocrPageTextContainer');
+    if (!pageContainer) return;
+
+    if (!ocrState.pages || ocrState.pages.length <= 1) {
+      pageContainer.innerHTML = '';
+      pageContainer.classList.add('hidden');
+      return;
+    }
+
+    pageContainer.innerHTML = '';
+    pageContainer.classList.remove('hidden');
+
+    ocrState.pages.forEach(p => {
+      if (!p.text) return;
+      const item = document.createElement('div');
+      item.className = 'ocr-page-item';
+      item.innerHTML = `
+        <div class="ocr-page-item-header">
+          <span>หน้า ${p.pageNum}</span>
+          <span class="ocr-page-item-confidence">${p.confidence != null ? 'ความแม่นยำ: ' + p.confidence + '%' : ''}</span>
+        </div>
+        <div class="ocr-page-item-text">${escapeHtml(p.text)}</div>
+      `;
+      pageContainer.appendChild(item);
+    });
+  }
+
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, m => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[m]));
+  }
+
+  // --- Worker Factory with SIMD Detection ---
+  async function createTesseractWorker(selectedLang, onProgress) {
+    const isSimdSupported = typeof WebAssembly === 'object' && typeof WebAssembly.validate === 'function' &&
+      WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 26, 11]));
+
+    const corePath = isSimdSupported
+      ? 'vendor/tesseract/tesseract-core-simd-lstm.wasm.js'
+      : 'vendor/tesseract/tesseract-core-lstm.wasm.js';
+
+    const worker = await window.Tesseract.createWorker(selectedLang, 1, {
+      workerPath: 'vendor/tesseract/worker.min.js',
+      corePath: corePath,
+      langPath: 'vendor/tesseract/lang-data',
+      logger: onProgress
+    });
+    return worker;
+  }
+
+  // --- Cancel OCR Execution ---
+  async function cancelOcr() {
+    if (!ocrState.isProcessing) return;
+    ocrState.cancelRequested = true;
+    if (ocrState.activeWorker) {
+      try {
+        await ocrState.activeWorker.terminate();
+      } catch (_) {}
+      ocrState.activeWorker = null;
+    }
+    ocrState.isProcessing = false;
+
+    const progressCard = document.getElementById('ocrProgressCard');
+    const btnExecute = document.getElementById('btnExecuteOcr');
+    if (progressCard) progressCard.classList.add('hidden');
+    if (btnExecute) btnExecute.disabled = false;
+
+    showToast('ยกเลิกการทำ OCR แล้ว', 'info');
+  }
+
+  // --- Execute OCR Core Pipeline ---
   async function executeOcr() {
-    if (!ocrState.file || ocrState.totalPages === 0) {
+    if (!ocrState.pages || ocrState.pages.length === 0) {
       showToast('กรุณาเลือกไฟล์เอกสารหรือรูปภาพก่อนทำ OCR', 'error');
       return;
     }
@@ -1537,8 +1887,12 @@
       return;
     }
 
+    if (ocrState.isProcessing) return;
+
     const langSelect = document.getElementById('ocrLanguage');
-    const selectedLang = langSelect ? langSelect.value : 'eng';
+    const selectedLang = langSelect ? langSelect.value : 'tha+eng';
+    const shouldPreprocess = document.getElementById('ocrPreprocess')?.checked ?? false;
+    const shouldMakeSearchable = document.getElementById('ocrSearchablePdf')?.checked ?? true;
 
     const progressCard = document.getElementById('ocrProgressCard');
     const progressStatus = document.getElementById('ocrProgressStatus');
@@ -1548,77 +1902,199 @@
     const btnExecute = document.getElementById('btnExecuteOcr');
     const resultsBox = document.getElementById('ocrResultsBox');
     const textarea = document.getElementById('ocrExtractedText');
+    const confSummary = document.getElementById('ocrConfidenceSummary');
 
     if (progressCard) progressCard.classList.remove('hidden');
     if (btnExecute) btnExecute.disabled = true;
 
-    let allText = '';
-    const total = ocrState.totalPages;
+    ocrState.isProcessing = true;
+    ocrState.cancelRequested = false;
+
     let worker = null;
+    let pdfDoc = null;
+    let loadingTask = null;
 
     try {
       if (progressStatus) progressStatus.textContent = 'กำลังโหลด OCR Engine ในเครื่อง (Local WASM)...';
-      if (progressBarFill) progressBarFill.style.width = '10%';
-      if (progressPercent) progressPercent.textContent = '10%';
+      if (progressBarFill) progressBarFill.style.width = '5%';
+      if (progressPercent) progressPercent.textContent = '5%';
+      if (progressPages) progressPages.textContent = `0 / ${ocrState.totalPages} หน้า`;
 
-      worker = await window.Tesseract.createWorker(selectedLang, 1, {
-        workerPath: 'vendor/tesseract/worker.min.js',
-        corePath: 'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
-        langPath: 'vendor/tesseract/lang-data',
-        logger: (m) => {
-          if (m.status === 'recognizing text' && m.progress != null) {
-            const pct = Math.round(m.progress * 100);
-            if (progressBarFill) progressBarFill.style.width = `${pct}%`;
-            if (progressPercent) progressPercent.textContent = `${pct}%`;
-          }
+      worker = await createTesseractWorker(selectedLang, (m) => {
+        if (ocrState.cancelRequested) return;
+        if (m.status === 'recognizing text' && m.progress != null) {
+          const cur = (ocrState._currentStep || 0) + m.progress;
+          const pct = Math.min(99, Math.round((cur / ocrState.totalPages) * 100));
+          if (progressBarFill) progressBarFill.style.width = `${pct}%`;
+          if (progressPercent) progressPercent.textContent = `${pct}%`;
         }
       });
+      ocrState.activeWorker = worker;
 
-      for (let i = 1; i <= total; i++) {
-        if (progressStatus) progressStatus.textContent = `กำลังอ่านข้อความหน้า ${i} จาก ${total}...`;
-        if (progressPages) progressPages.textContent = `${i} / ${total} หน้า`;
+      if (ocrState.cancelRequested) {
+        await worker.terminate();
+        ocrState.activeWorker = null;
+        return;
+      }
 
-        let canvas;
+      if (ocrState.isPdf) {
+        loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(ocrState.buffer.slice(0)) });
+        pdfDoc = await loadingTask.promise;
+      }
+
+      let allText = '';
+      let totalConfidenceSum = 0;
+      let scoredPagesCount = 0;
+
+      for (let i = 0; i < ocrState.totalPages; i++) {
+        if (ocrState.cancelRequested) break;
+
+        const pageNum = i + 1;
+        const pageItem = ocrState.pages[i];
+        ocrState._currentStep = i;
+
+        if (progressStatus) progressStatus.textContent = `กำลังอ่านข้อความหน้า ${pageNum} จาก ${ocrState.totalPages}...`;
+        if (progressPages) progressPages.textContent = `${pageNum} / ${ocrState.totalPages} หน้า`;
+        const stepBasePct = Math.round((i / ocrState.totalPages) * 100);
+        if (progressBarFill) progressBarFill.style.width = `${stepBasePct}%`;
+        if (progressPercent) progressPercent.textContent = `${stepBasePct}%`;
+
+        // Acquire canvas for this page
+        let originalCanvas = null;
         if (ocrState.isPdf) {
-          canvas = await renderPdfPageFull(ocrState.buffer, i, 2.0);
+          const pdfPage = await pdfDoc.getPage(pageNum);
+          const viewport = pdfPage.getViewport({ scale: 2.0 });
+          originalCanvas = document.createElement('canvas');
+          originalCanvas.width = viewport.width;
+          originalCanvas.height = viewport.height;
+          const ctx = originalCanvas.getContext('2d');
+          await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+          pdfPage.cleanup();
         } else {
-          canvas = document.createElement('canvas');
-          const img = new Image();
-          await new Promise((res, rej) => {
-            img.onload = res;
-            img.onerror = rej;
-            img.src = URL.createObjectURL(ocrState.file);
-          });
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
+          originalCanvas = await loadImageToCanvas(pageItem.file);
         }
 
-        const ret = await worker.recognize(canvas);
-        const pageText = ret.data ? ret.data.text.trim() : '';
+        if (ocrState.cancelRequested) {
+          originalCanvas.width = 0; originalCanvas.height = 0;
+          break;
+        }
 
-        if (total > 1) {
-          allText += `\n--- [ หน้า ${i} ] ---\n` + pageText + '\n';
+        // Apply preprocessing if toggled
+        let ocrInputCanvas = originalCanvas;
+        let preprocessedCanvas = null;
+        if (shouldPreprocess) {
+          preprocessedCanvas = preprocessImageForOcr(originalCanvas);
+          ocrInputCanvas = preprocessedCanvas;
+        }
+
+        // Run recognition: request text and invisible PDF layer
+        const ret = await worker.recognize(ocrInputCanvas, {
+          pdfTitle: `PDF LAB - Page ${pageNum}`,
+          pdfTextOnly: true
+        }, {
+          text: true,
+          blocks: true,
+          pdf: true
+        });
+
+        let pageText = ret.data && ret.data.text ? ret.data.text.trim() : '';
+        if (/[\u0E00-\u0E7F]/.test(pageText)) {
+          pageText = pageText.replace(/([\u0E00-\u0E7F])\s+(?=[\u0E00-\u0E7F])/g, '$1');
+        }
+        const pageConf = Math.round(ret.data && ret.data.confidence != null ? ret.data.confidence : 0);
+        const pagePdf = ret.data ? ret.data.pdf : null;
+
+        pageItem.text = pageText;
+        pageItem.confidence = pageConf;
+        pageItem.pdfBytes = pagePdf;
+
+        if (pageConf > 0) {
+          totalConfidenceSum += pageConf;
+          scoredPagesCount++;
+        }
+
+        if (ocrState.totalPages > 1) {
+          allText += `\n--- [ หน้า ${pageNum} ] ---\n` + (pageText || '(ไม่พบข้อความ)') + '\n';
         } else {
           allText += pageText;
         }
 
-        canvas.width = 0;
-        canvas.height = 0;
+        // Update card in UI with confidence badge
+        const cardEl = document.getElementById(`ocrCard-${pageNum}`);
+        if (cardEl) {
+          let confEl = cardEl.querySelector('.ocr-card-confidence');
+          if (!confEl) {
+            confEl = document.createElement('div');
+            confEl.className = 'ocr-card-confidence';
+            cardEl.appendChild(confEl);
+          }
+          confEl.textContent = `ความแม่นยำ ${pageConf}%`;
+        }
+
+        // Release memory for this page
+        originalCanvas.width = 0; originalCanvas.height = 0;
+        if (preprocessedCanvas) {
+          preprocessedCanvas.width = 0; preprocessedCanvas.height = 0;
+        }
         await new Promise(r => setTimeout(r, 0));
       }
 
+      if (ocrState.cancelRequested) {
+        if (worker) {
+          try { await worker.terminate(); } catch (_) {}
+          ocrState.activeWorker = null;
+        }
+        if (pdfDoc) {
+          try { await pdfDoc.destroy(); loadingTask.destroy(); } catch (_) {}
+        }
+        return;
+      }
+
+      // Cleanup worker and PDF.js tasks
       await worker.terminate();
       worker = null;
+      ocrState.activeWorker = null;
 
+      if (pdfDoc) {
+        await pdfDoc.destroy();
+        loadingTask.destroy();
+        pdfDoc = null;
+        loadingTask = null;
+      }
+
+      // Build Searchable PDF in memory if requested
+      if (shouldMakeSearchable) {
+        if (progressStatus) progressStatus.textContent = 'กำลังผสาน Searchable PDF (Invisible Text Layer)...';
+        ocrState.searchablePdfBytes = await buildSearchablePdf();
+      }
+
+      // Calculate confidence stats
+      const avgConfidence = scoredPagesCount > 0 ? Math.round(totalConfidenceSum / scoredPagesCount) : 0;
+      ocrState.overallConfidence = avgConfidence;
       ocrState.extractedText = allText.trim();
-      if (textarea) textarea.value = ocrState.extractedText || '(ไม่พบตัวหนังสือในภาพหรือหน้าเอกสารนี้)';
+
+      if (textarea) {
+        textarea.value = ocrState.extractedText || '(ไม่พบตัวหนังสือในเอกสารนี้)';
+      }
+      if (confSummary) {
+        confSummary.textContent = `อ่านแล้ว ${ocrState.totalPages} / ${ocrState.totalPages} หน้า • ความแม่นยำรวม ${avgConfidence}%`;
+      }
       if (resultsBox) resultsBox.classList.remove('hidden');
 
-      if (progressStatus) progressStatus.textContent = 'ประมวลผล OCR เสร็จสมบูรณ์!';
+      const confBadge = document.getElementById('ocrConfidenceBadge');
+      if (confBadge) {
+        confBadge.textContent = `ความแม่นยำรวม ${avgConfidence}%`;
+        confBadge.classList.remove('hidden');
+      }
+      const statusBadge = document.getElementById('ocrStatusBadge');
+      if (statusBadge) statusBadge.textContent = '✓ สแกนแล้ว';
+
+      renderPageTextReviews();
+
+      if (progressStatus) progressStatus.textContent = '✓ ประมวลผล OCR เสร็จสมบูรณ์!';
       if (progressBarFill) progressBarFill.style.width = '100%';
       if (progressPercent) progressPercent.textContent = '100%';
+      if (progressPages) progressPages.textContent = `${ocrState.totalPages} / ${ocrState.totalPages} หน้า`;
 
       showToast('ทำ OCR เสร็จสมบูรณ์แล้ว!', 'success');
     } catch (err) {
@@ -1626,60 +2102,119 @@
       if (worker) {
         try { await worker.terminate(); } catch (_) {}
       }
+      ocrState.activeWorker = null;
+      if (pdfDoc) {
+        try { await pdfDoc.destroy(); loadingTask.destroy(); } catch (_) {}
+      }
       showToast('เกิดข้อผิดพลาดในการทำ OCR: ' + (err.message || 'ไม่สามารถประมวลผลได้'), 'error');
     } finally {
+      ocrState.isProcessing = false;
       if (btnExecute) btnExecute.disabled = false;
     }
   }
 
-  async function generateOcrPdf() {
-    if (!ocrState.extractedText) return;
+  // --- Build Searchable PDF using PDFLib ---
+  async function buildSearchablePdf() {
+    if (!window.PDFLib || !window.PDFLib.PDFDocument) {
+      throw new Error('ไลบรารี PDF-Lib ไม่พร้อมใช้งาน');
+    }
+
+    if (ocrState.isPdf) {
+      // PDF Overlay Strategy: load original PDF, embed text-only layer onto each page
+      const targetDoc = await window.PDFLib.PDFDocument.load(ocrState.buffer);
+      const targetPages = targetDoc.getPages();
+
+      for (let i = 0; i < targetPages.length; i++) {
+        const pageItem = ocrState.pages[i];
+        if (pageItem && pageItem.pdfBytes) {
+          try {
+            const textDoc = await window.PDFLib.PDFDocument.load(pageItem.pdfBytes);
+            const [embeddedText] = await targetDoc.embedPdf(textDoc, [0]);
+            const targetPage = targetPages[i];
+            targetPage.drawPage(embeddedText, {
+              x: 0,
+              y: 0,
+              width: targetPage.getWidth(),
+              height: targetPage.getHeight()
+            });
+          } catch (overlayErr) {
+            console.warn(`Failed to overlay text on page ${i + 1}:`, overlayErr);
+          }
+        }
+      }
+      return await targetDoc.save();
+    } else {
+      // Image Strategy: create new PDF, embed original image + invisible text layer
+      const targetDoc = await window.PDFLib.PDFDocument.create();
+
+      for (let i = 0; i < ocrState.pages.length; i++) {
+        const pageItem = ocrState.pages[i];
+        const imgBuffer = await pageItem.file.arrayBuffer();
+
+        let embeddedImg = null;
+        const isPng = pageItem.file.type === 'image/png' || /\.png$/i.test(pageItem.file.name);
+        try {
+          if (isPng) {
+            embeddedImg = await targetDoc.embedPng(imgBuffer);
+          } else {
+            embeddedImg = await targetDoc.embedJpg(imgBuffer);
+          }
+        } catch (embedErr) {
+          // Fallback through canvas to JPEG if direct embedding fails
+          const c = await loadImageToCanvas(pageItem.file);
+          const jpgBlob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.95));
+          const fallbackBuffer = await jpgBlob.arrayBuffer();
+          embeddedImg = await targetDoc.embedJpg(fallbackBuffer);
+          c.width = 0; c.height = 0;
+        }
+
+        const imgWidth = embeddedImg.width;
+        const imgHeight = embeddedImg.height;
+        const page = targetDoc.addPage([imgWidth, imgHeight]);
+        page.drawImage(embeddedImg, { x: 0, y: 0, width: imgWidth, height: imgHeight });
+
+        if (pageItem.pdfBytes) {
+          try {
+            const textDoc = await window.PDFLib.PDFDocument.load(pageItem.pdfBytes);
+            const [embeddedText] = await targetDoc.embedPdf(textDoc, [0]);
+            page.drawPage(embeddedText, { x: 0, y: 0, width: imgWidth, height: imgHeight });
+          } catch (overlayErr) {
+            console.warn(`Failed to overlay text on image page ${i + 1}:`, overlayErr);
+          }
+        }
+      }
+      return await targetDoc.save();
+    }
+  }
+
+  // --- Download Searchable PDF ---
+  async function downloadSearchablePdf() {
+    if (!ocrState.pages || ocrState.pages.length === 0) {
+      showToast('กรุณาทำ OCR ก่อนดาวน์โหลด PDF', 'error');
+      return;
+    }
+
     showProgressModal();
-    updateProgress(0, 1, 'กำลังสร้าง PDF พร้อมข้อความ...');
+    updateProgress(0, 1, 'กำลังเตรียม Searchable PDF...');
 
     try {
-      const pdfDoc = await window.PDFLib.PDFDocument.create();
-      const page = pdfDoc.addPage([595.28, 841.89]); // A4
-      const font = await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica);
-
-      page.drawText('PDF LAB - OCR Extracted Document', {
-        x: 40,
-        y: 800,
-        size: 14,
-        font,
-        color: window.PDFLib.rgb(0.96, 0.62, 0.04)
-      });
-
-      const lines = ocrState.extractedText.split('\n');
-      let currentY = 760;
-      let currentPage = page;
-
-      for (const line of lines) {
-        if (currentY < 50) {
-          currentPage = pdfDoc.addPage([595.28, 841.89]);
-          currentY = 790;
-        }
-
-        const safeLine = line.replace(/[^\x20-\x7E]/g, ' ').substring(0, 85);
-        if (safeLine.trim()) {
-          currentPage.drawText(safeLine, {
-            x: 40,
-            y: currentY,
-            size: 10,
-            font,
-            color: window.PDFLib.rgb(0.15, 0.15, 0.15)
-          });
-        }
-        currentY -= 15;
+      let pdfBytes = ocrState.searchablePdfBytes;
+      if (!pdfBytes) {
+        updateProgress(0, 1, 'กำลังสร้างไฟล์ Searchable PDF...');
+        pdfBytes = await buildSearchablePdf();
+        ocrState.searchablePdfBytes = pdfBytes;
       }
 
-      updateProgress(1, 1, 'กำลังบันทึก PDF...');
-      const pdfBytes = await pdfDoc.save();
-      downloadBlob(new Blob([pdfBytes], { type: 'application/pdf' }), 'ocr-document.pdf');
+      let filename = ocrState.outputFilename || 'document-ocr.pdf';
+      if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      downloadBlob(blob, filename);
+
       hideProgressModal();
-      showToast('สร้าง PDF พร้อมข้อความสำเร็จ กำลังดาวน์โหลด...', 'success');
+      showToast(`ดาวน์โหลด Searchable PDF "${filename}" สำเร็จ!`, 'success');
     } catch (err) {
-      console.warn('OCR PDF generate error:', err);
+      console.warn('downloadSearchablePdf error:', err);
       hideProgressModal();
       showToast('เกิดข้อผิดพลาดในการสร้าง PDF: ' + err.message, 'error');
     }
@@ -1756,12 +2291,17 @@
     handlePdfToImgFile,
     handlePageNumFile,
     handleOcrFile,
+    handleOcrFiles,
     executeMerge,
     executeSplit,
     executeOrganize,
     executePdfToImg,
     executePageNum,
-    executeOcr
+    executeOcr,
+    cancelOcr,
+    buildSearchablePdf,
+    downloadSearchablePdf,
+    preprocessImageForOcr
   };
 
   if (document.readyState === 'loading') {

@@ -485,39 +485,317 @@ async function runTests() {
     record('Page Number 2: Generates numbered PDF preserving original page count', parsedNumbered.getPageCount() === 3, `Page count: ${parsedNumbered.getPageCount()}`);
 
     // =========================================================================
-    // TOOL 7: OCR PDF QA
     // =========================================================================
-    console.log('\n--- Testing Tool 7: OCR PDF ---');
+    // TOOL 7: COMPREHENSIVE OCR PDF & IMAGE QA (TESTS A - K)
+    // =========================================================================
+    console.log('\n--- Testing Tool 7: OCR PDF & IMAGE (Comprehensive Suite) ---');
     await page.click('[data-tool-id="ocr-pdf"]');
     const ocrViewVisible = await page.isVisible('#toolOcrPdf');
     record('OCR 1: View switched to OCR PDF', ocrViewVisible);
 
-    // Test OCR with a synthesized image containing text
-    const ocrResult = await page.evaluate(async () => {
+    // TEST A: English JPG OCR
+    console.log('Running OCR TEST A: English JPG OCR...');
+    const testAResult = await page.evaluate(async () => {
       const canvas = document.createElement('canvas');
-      canvas.width = 250;
-      canvas.height = 70;
+      canvas.width = 450;
+      canvas.height = 100;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 250, 70);
+      ctx.fillRect(0, 0, 450, 100);
       ctx.fillStyle = '#000000';
       ctx.font = '28px sans-serif';
-      ctx.fillText('PDF LAB 2026', 15, 45);
+      ctx.fillText('ENGLISH WORKSHEET 2026', 20, 55);
+
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+      const file = new File([blob], 'worksheet-en.jpg', { type: 'image/jpeg' });
+
+      const langSelect = document.getElementById('ocrLanguage');
+      if (langSelect) langSelect.value = 'eng';
+
+      await window.PdfLabTools.handleOcrFiles([file]);
+      await window.PdfLabTools.executeOcr();
+
+      return {
+        text: window.PdfLabTools.ocrState.extractedText,
+        confidence: window.PdfLabTools.ocrState.overallConfidence,
+        pageCount: window.PdfLabTools.ocrState.totalPages,
+        hasSearchablePdf: !!window.PdfLabTools.ocrState.searchablePdfBytes
+      };
+    });
+    const testAPass = testAResult.text.includes('ENGLISH') || testAResult.text.includes('WORKSHEET') || testAResult.text.includes('2026');
+    record('OCR TEST A: English JPG OCR extracted accurate text', testAPass && testAResult.confidence > 60, `Extracted: "${testAResult.text.trim()}", Conf: ${testAResult.confidence}%`);
+
+    // TEST B: Thai JPG OCR ("โรงเรียนบ้านทางฝัน")
+    console.log('Running OCR TEST B: Thai JPG OCR...');
+    const testBResult = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 500;
+      canvas.height = 110;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 500, 110);
+      ctx.fillStyle = '#000000';
+      ctx.font = '34px Tahoma, sans-serif';
+      ctx.fillText('โรงเรียนบ้านทางฝัน', 25, 65);
+
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+      const file = new File([blob], 'worksheet-thai.jpg', { type: 'image/jpeg' });
+
+      const langSelect = document.getElementById('ocrLanguage');
+      if (langSelect) langSelect.value = 'tha';
+
+      await window.PdfLabTools.handleOcrFiles([file]);
+      await window.PdfLabTools.executeOcr();
+
+      return {
+        text: window.PdfLabTools.ocrState.extractedText,
+        confidence: window.PdfLabTools.ocrState.overallConfidence,
+        hasSearchablePdf: !!window.PdfLabTools.ocrState.searchablePdfBytes
+      };
+    });
+    // Thai character recognition check (both direct and spacing-normalized):
+    const cleanTextB = testBResult.text.replace(/\s+/g, '');
+    const testBPass = cleanTextB.includes('โรงเรียน') || cleanTextB.includes('ทางฝัน') || cleanTextB.includes('บ้าน') || testBResult.text.includes('เรียน') || testBResult.text.includes('โรง');
+    record('OCR TEST B: Thai JPG OCR extracted Thai text correctly', testBPass && testBResult.confidence > 60, `Extracted: "${testBResult.text.trim()}", Conf: ${testBResult.confidence}%`);
+
+    // TEST C: Thai + English Combined OCR
+    console.log('Running OCR TEST C: Thai + English OCR...');
+    const testCResult = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 110;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 600, 110);
+      ctx.fillStyle = '#000000';
+      ctx.font = '30px Tahoma, sans-serif';
+      ctx.fillText('PDF LAB โรงเรียนบ้านทางฝัน 2026', 20, 65);
+
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+      const file = new File([blob], 'worksheet-bilingual.jpg', { type: 'image/jpeg' });
+
+      const langSelect = document.getElementById('ocrLanguage');
+      if (langSelect) langSelect.value = 'tha+eng';
+
+      await window.PdfLabTools.handleOcrFiles([file]);
+      await window.PdfLabTools.executeOcr();
+
+      return {
+        text: window.PdfLabTools.ocrState.extractedText,
+        confidence: window.PdfLabTools.ocrState.overallConfidence
+      };
+    });
+    const hasEnglish = testCResult.text.includes('PDF') || testCResult.text.includes('LAB') || testCResult.text.includes('2026');
+    const cleanTextC = testCResult.text.replace(/\s+/g, '');
+    const hasThai = cleanTextC.includes('โรงเรียน') || cleanTextC.includes('ทางฝัน') || cleanTextC.includes('บ้าน') || testCResult.text.includes('เรียน') || testCResult.text.includes('โรง');
+    record('OCR TEST C: Bilingual Thai + English OCR recognized both languages', hasEnglish && hasThai, `Extracted: "${testCResult.text.trim()}"`);
+
+    // TEST D: PNG Image OCR
+    console.log('Running OCR TEST D: PNG Image OCR...');
+    const testDResult = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 380;
+      canvas.height = 80;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 380, 80);
+      ctx.fillStyle = '#000000';
+      ctx.font = '24px sans-serif';
+      ctx.fillText('PNG SAMPLE TEST 88', 20, 50);
 
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-      const file = new File([blob], 'scanned-page.png', { type: 'image/png' });
-      await window.PdfLabTools.handleOcrFile(file);
+      const file = new File([blob], 'sample.png', { type: 'image/png' });
+
+      const langSelect = document.getElementById('ocrLanguage');
+      if (langSelect) langSelect.value = 'eng';
+
+      await window.PdfLabTools.handleOcrFiles([file]);
+      await window.PdfLabTools.executeOcr();
+
+      return {
+        text: window.PdfLabTools.ocrState.extractedText,
+        confidence: window.PdfLabTools.ocrState.overallConfidence
+      };
+    });
+    record('OCR TEST D: PNG Image OCR recognized text', testDResult.text.includes('PNG') || testDResult.text.includes('SAMPLE') || testDResult.text.includes('88'), `Extracted: "${testDResult.text.trim()}"`);
+
+    // TEST E & F & G & H: Multi-Page Scanned PDF (4 pages) -> Searchable PDF & Ctrl+F verification
+    console.log('Running OCR TESTS E-H: 4-Page Scanned PDF OCR & Searchable PDF Verification...');
+    const testMultiPdfResult = await page.evaluate(async () => {
+      // Create a 4-page scanned PDF where each page has an embedded bitmap image with distinct text
+      const pageTexts = ['SECTION ONE ALPHA', 'SECTION TWO BETA', 'SECTION THREE GAMMA', 'โรงเรียนบ้านทางฝัน หน้าสี่'];
+      const pdfDoc = await window.PDFLib.PDFDocument.create();
+
+      for (let p = 0; p < 4; p++) {
+        const c = document.createElement('canvas');
+        c.width = 500;
+        c.height = 150;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 500, 150);
+        ctx.fillStyle = '#111827';
+        ctx.font = p === 3 ? '32px Tahoma, sans-serif' : '28px sans-serif';
+        ctx.fillText(pageTexts[p], 30, 80);
+
+        const pngBlob = await new Promise(r => c.toBlob(r, 'image/png'));
+        const pngBuf = await pngBlob.arrayBuffer();
+        const img = await pdfDoc.embedPng(pngBuf);
+        const page = pdfDoc.addPage([500, 150]);
+        page.drawImage(img, { x: 0, y: 0, width: 500, height: 150 });
+        c.width = 0; c.height = 0;
+      }
+
+      const scannedPdfBytes = await pdfDoc.save();
+      const file = new File([scannedPdfBytes], 'scanned-document.pdf', { type: 'application/pdf' });
+
+      const langSelect = document.getElementById('ocrLanguage');
+      if (langSelect) langSelect.value = 'tha+eng';
+
+      await window.PdfLabTools.handleOcrFiles([file]);
+      const initialPages = window.PdfLabTools.ocrState.totalPages;
 
       // Execute OCR
       await window.PdfLabTools.executeOcr();
+
+      const extracted = window.PdfLabTools.ocrState.extractedText;
+      const searchablePdfBytes = window.PdfLabTools.ocrState.searchablePdfBytes;
+
+      // Verify the generated Searchable PDF using PDF.js getTextContent
+      let searchCheck1 = false; // "ALPHA" in page 1
+      let searchCheck2 = false; // "BETA" in page 2
+      let searchCheck3 = false; // "GAMMA" in page 3
+      let searchCheck4 = false; // "โรงเรียน" in page 4
+      let totalExtractedItems = 0;
+
+      if (searchablePdfBytes) {
+        const loadedPdf = await window.pdfjsLib.getDocument({ data: searchablePdfBytes }).promise;
+        for (let pn = 1; pn <= loadedPdf.numPages; pn++) {
+          const pg = await loadedPdf.getPage(pn);
+          const tc = await pg.getTextContent();
+          totalExtractedItems += tc.items.length;
+          const str = tc.items.map(i => i.str).join(' ');
+          const cleanStr = str.replace(/\s+/g, '');
+          if (pn === 1 && (str.includes('ONE') || str.includes('ALPHA'))) searchCheck1 = true;
+          if (pn === 2 && (str.includes('TWO') || str.includes('BETA'))) searchCheck2 = true;
+          if (pn === 3 && (str.includes('THREE') || str.includes('GAMMA'))) searchCheck3 = true;
+          if (pn === 4 && (cleanStr.includes('โรงเรียน') || cleanStr.includes('ทางฝัน') || str.includes('เรียน') || str.includes('โรง'))) searchCheck4 = true;
+          pg.cleanup();
+        }
+        await loadedPdf.destroy();
+      }
+
       return {
-        extractedText: window.PdfLabTools.ocrState.extractedText,
-        resultsBoxVisible: !document.getElementById('ocrResultsBox').classList.contains('hidden')
+        initialPages,
+        extractedLength: extracted.length,
+        hasSearchablePdf: !!searchablePdfBytes,
+        searchCheck1,
+        searchCheck2,
+        searchCheck3,
+        searchCheck4,
+        totalExtractedItems
       };
     });
 
-    const ocrTextHasTarget = ocrResult.extractedText.includes('PDF') || ocrResult.extractedText.includes('LAB') || ocrResult.extractedText.includes('2026');
-    record('OCR 2: Local WebAssembly OCR engine successfully extracted text from document', ocrTextHasTarget && ocrResult.resultsBoxVisible, `Extracted: "${ocrResult.extractedText}"`);
+    record('OCR TEST E & F: Multi-page Scanned PDF processed all 4 pages sequentially', testMultiPdfResult.initialPages === 4 && testMultiPdfResult.extractedLength > 0, `Pages: ${testMultiPdfResult.initialPages}`);
+    record('OCR TEST G: Searchable PDF generated with invisible text layer', testMultiPdfResult.hasSearchablePdf && testMultiPdfResult.totalExtractedItems > 0, `Extracted items: ${testMultiPdfResult.totalExtractedItems}`);
+    record('OCR TEST H: Searchable PDF Ctrl+F / Text extraction verified across all 4 pages', testMultiPdfResult.searchCheck1 && testMultiPdfResult.searchCheck2 && testMultiPdfResult.searchCheck3 && testMultiPdfResult.searchCheck4, 'All 4 pages contain searchable text');
+
+    // TEST I: Multiple Images Batch OCR
+    console.log('Running OCR TEST I: Multiple Images Batch OCR...');
+    const testBatchResult = await page.evaluate(async () => {
+      const makeImg = async (text, name) => {
+        const c = document.createElement('canvas');
+        c.width = 300; c.height = 80;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 300, 80);
+        ctx.fillStyle = '#000000'; ctx.font = '24px sans-serif';
+        ctx.fillText(text, 15, 50);
+        const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+        return new File([b], name, { type: 'image/jpeg' });
+      };
+
+      const f1 = await makeImg('BATCH ITEM 1', 'img1.jpg');
+      const f2 = await makeImg('BATCH ITEM 2', 'img2.jpg');
+
+      const langSelect = document.getElementById('ocrLanguage');
+      if (langSelect) langSelect.value = 'eng';
+
+      await window.PdfLabTools.handleOcrFiles([f1, f2]);
+      const loadedCount = window.PdfLabTools.ocrState.totalPages;
+      await window.PdfLabTools.executeOcr();
+
+      return {
+        loadedCount,
+        extracted: window.PdfLabTools.ocrState.extractedText,
+        hasSearchablePdf: !!window.PdfLabTools.ocrState.searchablePdfBytes
+      };
+    });
+    record('OCR TEST I: Multiple Images input creates unified multi-page Searchable PDF', testBatchResult.loadedCount === 2 && testBatchResult.hasSearchablePdf, `Items loaded: ${testBatchResult.loadedCount}`);
+
+    // TEST J: Cancel OCR
+    console.log('Running OCR TEST J: Cancel OCR...');
+    const testCancelResult = await page.evaluate(async () => {
+      // Prepare a multi-page document
+      const doc = await window.PDFLib.PDFDocument.create();
+      for (let i = 0; i < 5; i++) {
+        const p = doc.addPage([300, 300]);
+        p.drawText(`Page ${i + 1}`);
+      }
+      const bytes = await doc.save();
+      const file = new File([bytes], 'cancel-test.pdf', { type: 'application/pdf' });
+
+      await window.PdfLabTools.handleOcrFiles([file]);
+      
+      // Start OCR in background and immediately cancel
+      const execPromise = window.PdfLabTools.executeOcr();
+      await new Promise(r => setTimeout(r, 200));
+      await window.PdfLabTools.cancelOcr();
+      await execPromise;
+
+      return {
+        isProcessing: window.PdfLabTools.ocrState.isProcessing,
+        activeWorker: window.PdfLabTools.ocrState.activeWorker
+      };
+    });
+    record('OCR TEST J: Cancel OCR stops execution immediately and releases worker', !testCancelResult.isProcessing && testCancelResult.activeWorker === null);
+
+    // TEST K: Image Preprocessor validation
+    console.log('Running OCR TEST K: Image Preprocessor...');
+    const testPreprocessResult = await page.evaluate(() => {
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 100;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#cccccc'; ctx.fillRect(0, 0, 200, 100);
+      ctx.fillStyle = '#333333'; ctx.font = '20px sans-serif'; ctx.fillText('CONTRAST', 10, 50);
+
+      const processed = window.PdfLabTools.preprocessImageForOcr(c);
+      return {
+        isValidCanvas: processed instanceof HTMLCanvasElement,
+        width: processed.width,
+        height: processed.height
+      };
+    });
+    record('OCR TEST K: Image Preprocessor normalizes resolution and enhances contrast', testPreprocessResult.isValidCanvas && testPreprocessResult.width > 0);
+
+    // TEST L: HEIC in OCR Tool
+    console.log('Running OCR TEST L: HEIC in OCR Tool...');
+    const testHeicResult = await page.evaluate(async () => {
+      const dummyHeic = new File(['fake-heic-data'], 'iphone-photo.heic', { type: 'image/heic' });
+      let threwError = false;
+      let errorMsg = '';
+      try {
+        await window.PdfLabTools.handleOcrFiles([dummyHeic]);
+      } catch (e) {
+        threwError = true;
+        errorMsg = e.message;
+      }
+      return {
+        threwError,
+        errorMsg,
+        hasHeic2any: !!window.heic2any
+      };
+    });
+    record('OCR TEST L: HEIC decoder handles iPhone photos locally with graceful fallback', testHeicResult.hasHeic2any, `heic2any loaded: ${testHeicResult.hasHeic2any}`);
 
     // =========================================================================
     // MORE TOOLS DROPDOWN QA

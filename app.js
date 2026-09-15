@@ -484,6 +484,11 @@
     }
 
     if (imageFiles.length > 0) {
+      if (state.activeTool === 'ocr-pdf' && window.PdfLabTools && window.PdfLabTools.handleOcrFiles) {
+        showToast(`วางรูปภาพสำหรับ OCR จาก Clipboard สำเร็จ (${imageFiles.length} รูป)`, 'success');
+        window.PdfLabTools.handleOcrFiles(imageFiles);
+        return;
+      }
       showToast(`วางรูปภาพจาก Clipboard สำเร็จ (${imageFiles.length} รูป)`, 'success');
       handleFiles(imageFiles);
     }
