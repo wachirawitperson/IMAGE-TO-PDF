@@ -797,6 +797,55 @@ async function runTests() {
     });
     record('OCR TEST L: HEIC decoder handles iPhone photos locally with graceful fallback', testHeicResult.hasHeic2any, `heic2any loaded: ${testHeicResult.hasHeic2any}`);
 
+    // TEST M, N, O: Real Browser File Picker UI Flow (Real DOM input & Button Clicks)
+    console.log('Running OCR TEST M, N, O: Real Browser File Picker UI End-to-End...');
+    await page.click('button[data-tool-id="ocr-pdf"]');
+    await page.waitForTimeout(300);
+    await page.click('#btnClearOcr').catch(() => {});
+    await page.waitForTimeout(300);
+
+    const uiFileInput = await page.$('#fileInputOcr');
+    const realFixturePath = path.join(ROOT_DIR, 'test-fixtures/ocr-english.png');
+    await uiFileInput.setInputFiles(realFixturePath);
+    await page.waitForTimeout(1000);
+
+    const uiThumbsCount = await page.$$eval('#ocrThumbnailGrid .thumb-card', elms => elms.length);
+    record('OCR TEST M: Real file picker selection creates thumbnail card in workspace', uiThumbsCount === 1, `Thumbs: ${uiThumbsCount}`);
+
+    // Select language eng
+    await page.selectOption('#ocrLanguage', 'eng');
+    await page.click('#btnExecuteOcr');
+
+    // Wait for completion
+    let uiOcrFinished = false;
+    for (let waitSec = 0; waitSec < 35; waitSec++) {
+      await page.waitForTimeout(1000);
+      const curStatus = await page.$eval('#ocrProgressStatus', el => el.textContent).catch(() => '');
+      if (curStatus.includes('เสร็จสมบูรณ์')) {
+        uiOcrFinished = true;
+        break;
+      }
+      if (curStatus.includes('เกิดข้อผิดพลาด')) break;
+    }
+
+    const uiExtracted = await page.$eval('#ocrExtractedText', el => el.value).catch(() => '');
+    const uiConf = await page.$eval('#ocrConfidenceBadge', el => el.textContent).catch(() => '');
+    const uiHasEnglish = uiExtracted.includes('ENGLISH') || uiExtracted.includes('WORKSHEET') || uiExtracted.includes('2026');
+    record('OCR TEST N: Real browser file picker OCR extracted text via UI button click', uiOcrFinished && uiHasEnglish, `Extracted: "${uiExtracted.trim()}", Badge: ${uiConf}`);
+
+    // Test Searchable PDF download through UI button
+    const ocrDownloadPromise = page.waitForEvent('download', { timeout: 15000 });
+    await page.click('#btnOcrDownloadPdf');
+    const ocrDownload = await ocrDownloadPromise;
+    const downloadedOcrPdfPath = path.join(ROOT_DIR, 'test-fixtures/downloaded-ocr-ui.pdf');
+    await ocrDownload.saveAs(downloadedOcrPdfPath);
+    const ocrPdfExists = fs.existsSync(downloadedOcrPdfPath) && fs.statSync(downloadedOcrPdfPath).size > 1000;
+    record('OCR TEST O: Searchable PDF generated and downloaded via UI button click', ocrPdfExists, `File: ${downloadedOcrPdfPath}`);
+
+    // Reset OCR
+    await page.click('#btnClearOcr');
+    await page.waitForTimeout(300);
+
     // =========================================================================
     // MORE TOOLS DROPDOWN QA
     // =========================================================================

@@ -1390,6 +1390,17 @@
 
     if (!fileInput || !dropZone) return;
 
+    if (window.location.protocol === 'file:') {
+      const warningBanner = document.createElement('div');
+      warningBanner.className = 'ocr-file-warning';
+      warningBanner.style.cssText = 'background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: #ef4444; font-size: 0.875rem; line-height: 1.5; text-align: left;';
+      warningBanner.innerHTML = '⚠️ <strong>แจ้งเตือน:</strong> กำลังเปิดผ่านโปรโตคอล <code>file://</code> ซึ่งเบราว์เซอร์ (Chrome / Edge) บล็อก Web Worker & WebAssembly เพื่อความปลอดภัย กรุณาเปิดผ่าน Web Server ในเครื่อง (เช่น รันคำสั่ง <code>npm start</code> หรือเปิดด้วย VS Code Live Server)';
+      const uploadCard = document.querySelector('#ocrUploadScreen .upload-card');
+      if (uploadCard && !uploadCard.querySelector('.ocr-file-warning')) {
+        uploadCard.insertBefore(warningBanner, uploadCard.firstChild);
+      }
+    }
+
     btnSelect?.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('click', (e) => {
       if (e.target.closest('#btnSelectOcrFile')) return;
@@ -1837,22 +1848,91 @@
     }[m]));
   }
 
-  // --- Worker Factory with SIMD Detection ---
+  // --- Helper: Resolve OCR Asset URL relative to current page base ---
+  function getOcrAssetUrl(relativePath) {
+    try {
+      let base = window.location.href;
+      const urlObj = new URL(base);
+      if (!urlObj.pathname.endsWith('/') && !/\.[a-zA-Z0-9]+([?#].*)?$/.test(urlObj.pathname)) {
+        urlObj.pathname += '/';
+      }
+      return new URL(relativePath, urlObj.href).href;
+    } catch (_) {
+      return relativePath;
+    }
+  }
+
+  // --- Helper: Format OCR Error Details for User ---
+  function formatOcrError(err) {
+    if (!err) return 'ไม่สามารถโหลด OCR Engine ในเครื่องได้';
+    if (typeof err === 'string' && err.trim()) return err.trim();
+    if (window.location.protocol === 'file:') {
+      return 'เบราว์เซอร์บล็อก Web Worker และ WebAssembly บนโปรโตคอล file:// โดยตรง กรุณาเปิดผ่าน Web Server ในเครื่อง (เช่น VS Code Live Server หรือ npx serve) หรือใช้งานผ่านเว็บไซต์';
+    }
+    if (err.message && typeof err.message === 'string' && err.message.trim()) {
+      return err.message.trim();
+    }
+    if (err.error && err.error.message) {
+      return err.error.message.trim();
+    }
+    if (err.type === 'error' || (typeof Event !== 'undefined' && err instanceof Event)) {
+      return 'Web Worker ไม่สามารถดาวน์โหลดหรือเริ่มต้นสคริปต์ OCR ได้ (ตรวจสอบการเชื่อมต่อไฟล์ vendor/tesseract)';
+    }
+    try {
+      const json = JSON.stringify(err);
+      if (json && json !== '{}') return json;
+    } catch (_) {}
+    return String(err);
+  }
+
+  // --- Worker Factory with SIMD Detection & Dual Fallbacks ---
   async function createTesseractWorker(selectedLang, onProgress) {
+    if (window.location.protocol === 'file:') {
+      throw new Error('เบราว์เซอร์ (Chrome/Edge) กำหนดนโยบายความปลอดภัยไม่อนุญาตให้รัน Web Worker / WebAssembly ผ่านโปรโตคอล file:// กรุณารันผ่าน Web Server ในเครื่อง (เช่น VS Code Live Server หรือ npx serve)');
+    }
+
     const isSimdSupported = typeof WebAssembly === 'object' && typeof WebAssembly.validate === 'function' &&
       WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 26, 11]));
 
-    const corePath = isSimdSupported
+    const workerUrl = getOcrAssetUrl('vendor/tesseract/worker.min.js');
+    const langUrl = getOcrAssetUrl('vendor/tesseract/lang-data');
+    const primaryCore = isSimdSupported
       ? 'vendor/tesseract/tesseract-core-simd-lstm.wasm.js'
       : 'vendor/tesseract/tesseract-core-lstm.wasm.js';
 
-    const worker = await window.Tesseract.createWorker(selectedLang, 1, {
-      workerPath: 'vendor/tesseract/worker.min.js',
-      corePath: corePath,
-      langPath: 'vendor/tesseract/lang-data',
-      logger: onProgress
-    });
-    return worker;
+    async function trySpawn(coreRelPath, useBlobUrl) {
+      const coreUrl = getOcrAssetUrl(coreRelPath);
+      return await window.Tesseract.createWorker(selectedLang, 1, {
+        workerPath: workerUrl,
+        corePath: coreUrl,
+        langPath: langUrl,
+        workerBlobURL: useBlobUrl,
+        logger: onProgress
+      });
+    }
+
+    // 1. Try primary core with workerBlobURL: true
+    try {
+      return await trySpawn(primaryCore, true);
+    } catch (err1) {
+      console.warn('OCR Worker spawn (primary, blobURL:true) failed, trying blobURL:false...', err1);
+      // 2. Try primary core with workerBlobURL: false
+      try {
+        return await trySpawn(primaryCore, false);
+      } catch (err2) {
+        console.warn('OCR Worker spawn (primary, blobURL:false) failed...', err2);
+        // 3. Fallback to standard LSTM core if SIMD failed
+        if (isSimdSupported) {
+          console.warn('Falling back to standard non-SIMD LSTM core...');
+          try {
+            return await trySpawn('vendor/tesseract/tesseract-core-lstm.wasm.js', true);
+          } catch (err3) {
+            return await trySpawn('vendor/tesseract/tesseract-core-lstm.wasm.js', false);
+          }
+        }
+        throw err2;
+      }
+    }
   }
 
   // --- Cancel OCR Execution ---
@@ -2098,7 +2178,7 @@
 
       showToast('ทำ OCR เสร็จสมบูรณ์แล้ว!', 'success');
     } catch (err) {
-      console.warn('OCR processing error:', err);
+      console.error('OCR processing error details:', err, err?.stack);
       if (worker) {
         try { await worker.terminate(); } catch (_) {}
       }
@@ -2106,7 +2186,9 @@
       if (pdfDoc) {
         try { await pdfDoc.destroy(); loadingTask.destroy(); } catch (_) {}
       }
-      showToast('เกิดข้อผิดพลาดในการทำ OCR: ' + (err.message || 'ไม่สามารถประมวลผลได้'), 'error');
+      const errMessage = formatOcrError(err);
+      if (progressStatus) progressStatus.textContent = '❌ ' + errMessage;
+      showToast('เกิดข้อผิดพลาดในการทำ OCR: ' + errMessage, 'error');
     } finally {
       ocrState.isProcessing = false;
       if (btnExecute) btnExecute.disabled = false;
