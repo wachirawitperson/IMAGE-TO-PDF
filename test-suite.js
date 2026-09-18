@@ -214,6 +214,120 @@ async function runTests() {
       `Fit: ${fitFillTest.fitW}x${fitFillTest.fitH}, Fill: ${fitFillTest.fillW}x${fitFillTest.fillH}`
     );
 
+    // --- LIVE PDF PREVIEW QA TESTS ---
+    console.log('\n--- Testing Live PDF Preview Features ---');
+
+    // 1. Live Preview Panel and Sheet Frame Exist
+    const previewVisible = await page.evaluate(() => {
+      const panel = document.getElementById('livePreviewPanel');
+      const frame = document.getElementById('previewSheetFrame');
+      const canvas = document.getElementById('livePdfCanvas');
+      return !!panel && !!frame && !!canvas && frame.offsetWidth > 0 && frame.offsetHeight > 0;
+    });
+    record('Live Preview 1: Panel, canvas, and sheet frame rendered with non-zero dimensions', previewVisible);
+
+    // 2. Page Navigation & Indicator
+    const navTest = await page.evaluate(() => {
+      const indBefore = document.getElementById('previewPageIndicator').textContent;
+      const prevDisabled = document.getElementById('btnPreviewPrev').disabled;
+      return { indBefore, prevDisabled };
+    });
+    record('Live Preview 2: Default page is 1 with Prev button disabled', 
+      navTest.indBefore.includes('1 / 4') && navTest.prevDisabled
+    );
+
+    // Click Next button to go to Page 2
+    await page.click('#btnPreviewNext');
+    await page.waitForTimeout(100);
+    const page2State = await page.evaluate(() => {
+      const ind = document.getElementById('previewPageIndicator').textContent;
+      const curIdx = window.__APP_STATE__.selectedIndex;
+      const prevDisabled = document.getElementById('btnPreviewPrev').disabled;
+      const cardSelected = document.querySelectorAll('.thumb-card')[1]?.classList.contains('selected');
+      return { ind, curIdx, prevDisabled, cardSelected };
+    });
+    record('Live Preview 3: Next button advances to page 2 and highlights card #2', 
+      page2State.curIdx === 1 && page2State.ind.includes('2 / 4') && !page2State.prevDisabled && page2State.cardSelected
+    );
+
+    // 3. Card click in thumbnail grid updates selectedIndex & preview
+    await page.click('.thumb-card:nth-child(3)');
+    await page.waitForTimeout(100);
+    const cardClickState = await page.evaluate(() => {
+      const curIdx = window.__APP_STATE__.selectedIndex;
+      const ind = document.getElementById('previewPageIndicator').textContent;
+      const card3Selected = document.querySelectorAll('.thumb-card')[2]?.classList.contains('selected');
+      return { curIdx, ind, card3Selected };
+    });
+    record('Live Preview 4: Clicking card #3 selects it for preview', 
+      cardClickState.curIdx === 2 && cardClickState.ind.includes('3 / 4') && cardClickState.card3Selected
+    );
+
+    // 4. Orientation Switch updates Sheet Frame aspect ratio
+    await page.click('label.segment-btn:has(input[name="orientation"][value="portrait"])');
+    await page.waitForTimeout(150);
+    const portraitDim = await page.evaluate(() => {
+      const frame = document.getElementById('previewSheetFrame');
+      const spec = document.getElementById('previewSpecSize').textContent;
+      return { w: frame.offsetWidth, h: frame.offsetHeight, spec };
+    });
+
+    await page.click('label.segment-btn:has(input[name="orientation"][value="landscape"])');
+    await page.waitForTimeout(150);
+    const landscapeDim = await page.evaluate(() => {
+      const frame = document.getElementById('previewSheetFrame');
+      const spec = document.getElementById('previewSpecSize').textContent;
+      return { w: frame.offsetWidth, h: frame.offsetHeight, spec };
+    });
+
+    record('Live Preview 5: Orientation change updates sheet frame geometry and label', 
+      portraitDim.h > portraitDim.w && landscapeDim.w > landscapeDim.h && landscapeDim.spec.includes('แนวนอน'),
+      `Portrait: ${portraitDim.w}x${portraitDim.h}, Landscape: ${landscapeDim.w}x${landscapeDim.h}`
+    );
+
+    // Reset orientation to auto
+    await page.click('label.segment-btn:has(input[name="orientation"][value="auto"])');
+    await page.waitForTimeout(100);
+
+    // 5. Image Placement Switch (Fit vs Fill) updates Spec Pill and canvas
+    await page.click('label.segment-btn:has(input[name="placement"][value="fill"])');
+    await page.waitForTimeout(100);
+    const fillSpec = await page.evaluate(() => document.getElementById('previewSpecPlacement').textContent);
+    await page.click('label.segment-btn:has(input[name="placement"][value="fit"])');
+    await page.waitForTimeout(100);
+    const fitSpec = await page.evaluate(() => document.getElementById('previewSpecPlacement').textContent);
+    record('Live Preview 6: Placement switch (Fit vs Fill) updates preview state', 
+      fillSpec.includes('Fill') && fitSpec.includes('Fit')
+    );
+
+    // 6. Page Margins Switch updates Spec Pill
+    await page.click('label.segment-btn:has(input[name="margin"][value="large"])');
+    await page.waitForTimeout(100);
+    const largeMarginSpec = await page.evaluate(() => document.getElementById('previewSpecMargin').textContent);
+    await page.click('label.segment-btn:has(input[name="margin"][value="none"])');
+    await page.waitForTimeout(100);
+    const noneMarginSpec = await page.evaluate(() => document.getElementById('previewSpecMargin').textContent);
+    record('Live Preview 7: Margin switch updates preview spec pill', 
+      largeMarginSpec.includes('40pt') && noneMarginSpec.includes('ไม่มีขอบ')
+    );
+
+    // 7. Paper Size Switch updates Spec Pill
+    await page.selectOption('#settingPaper', 'Letter');
+    await page.waitForTimeout(100);
+    const letterSpec = await page.evaluate(() => document.getElementById('previewSpecSize').textContent);
+    await page.selectOption('#settingPaper', 'A4');
+    await page.waitForTimeout(100);
+    record('Live Preview 8: Paper size change reflects in preview spec', letterSpec.includes('Letter'));
+
+    // 8. Rotating active card triggers live preview update
+    await page.click('.thumb-card.selected .rotate-btn');
+    await page.waitForTimeout(150);
+    const rotAfter = await page.evaluate(() => {
+      const curItem = window.__APP_STATE__.items[window.__APP_STATE__.selectedIndex];
+      return curItem.rotation;
+    });
+    record('Live Preview 9: Rotating selected image updates preview rotation angle', rotAfter > 0, `Rotation: ${rotAfter}deg`);
+
     // Test Filename sanitizer
     const sanitized = await page.evaluate(() => {
       return window.__APP_UTILS__.sanitizeFilename('My / Illegal: Test? File.pdf');

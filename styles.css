@@ -1078,6 +1078,19 @@ button, input, select, textarea {
   box-shadow: var(--shadow-md);
 }
 
+.thumb-card.selected {
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 0 2px var(--accent-amber-glow), 0 4px 16px rgba(0, 0, 0, 0.4);
+  background-color: var(--bg-surface-hover);
+}
+
+.thumb-card.selected .page-badge {
+  background-color: var(--accent-amber);
+  color: #0b0c0e;
+  border-color: var(--accent-amber);
+  font-weight: 800;
+}
+
 /* Sortable drag states */
 .thumb-card.sortable-ghost {
   opacity: 0.35;
@@ -1317,6 +1330,154 @@ button, input, select, textarea {
 .settings-subtitle {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Live PDF Sheet Preview Panel
+   ========================================================================== */
+
+.live-preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.live-preview-panel:hover {
+  border-color: var(--border-strong);
+}
+
+.live-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.live-preview-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  background-color: var(--accent-amber-subtle);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.preview-page-indicator {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.preview-page-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-preview-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-preview-nav:hover:not(:disabled) {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.btn-preview-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Stage: Gray workspace container for paper simulation */
+.live-preview-stage {
+  width: 100%;
+  height: 250px;
+  background-color: #0d0f12;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  overflow: hidden;
+  position: relative;
+}
+
+[data-theme="light"] .live-preview-stage {
+  background-color: #e2e8f0;
+}
+
+/* Sheet Frame: White paper elevation with shadow */
+.preview-sheet-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  border-radius: 2px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.1);
+  transition: width 0.25s cubic-bezier(0.2, 0, 0, 1), height 0.25s cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+[data-theme="light"] .preview-sheet-frame {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.live-pdf-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.live-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-spec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.spec-divider {
+  opacity: 0.5;
 }
 
 .settings-form {
@@ -1910,6 +2071,11 @@ select option {
     position: static;
     max-height: none;
     overflow-y: visible;
+  }
+
+  .live-preview-stage {
+    height: 220px;
+    padding: 10px;
   }
   
   /* Mobile Sticky Bottom CTA */

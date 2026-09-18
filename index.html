@@ -422,6 +422,45 @@
               </div>
             </div>
 
+            <!-- Live PDF Sheet Preview Panel -->
+            <div class="live-preview-panel" id="livePreviewPanel" aria-label="ตัวอย่างหน้ากระดาษ PDF แบบ Real-time">
+              <div class="live-preview-header">
+                <div class="live-preview-title-group">
+                  <span class="live-preview-badge">
+                    <span class="dot-live"></span>
+                    LIVE PREVIEW
+                  </span>
+                  <span class="preview-page-indicator" id="previewPageIndicator">หน้า 1 / 1</span>
+                </div>
+                <div class="preview-page-nav">
+                  <button type="button" class="btn-preview-nav" id="btnPreviewPrev" title="หน้าก่อนหน้า" aria-label="หน้าก่อนหน้า" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  <button type="button" class="btn-preview-nav" id="btnPreviewNext" title="หน้าถัดไป" aria-label="หน้าถัดไป" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Canvas Stage -->
+              <div class="live-preview-stage" id="livePreviewStage">
+                <div class="preview-sheet-frame" id="previewSheetFrame">
+                  <canvas id="livePdfCanvas" class="live-pdf-canvas"></canvas>
+                </div>
+              </div>
+
+              <!-- Preview Footer Spec Info -->
+              <div class="live-preview-footer">
+                <div class="preview-spec-pill" id="previewSpecPill">
+                  <span id="previewSpecSize">A4 แนวตั้ง</span>
+                  <span class="spec-divider">•</span>
+                  <span id="previewSpecPlacement">Fit (พอดีหน้า)</span>
+                  <span class="spec-divider">•</span>
+                  <span id="previewSpecMargin">ไม่มีขอบ</span>
+                </div>
+              </div>
+            </div>
+
             <form class="settings-form" id="settingsForm" onsubmit="event.preventDefault();">
               
               <!-- Paper Size -->
@@ -536,7 +575,7 @@
                     <span class="segment-label">ความคมชัดสูง</span>
                   </label>
                 </div>
-                <small class="setting-hint">สมดุล: ไฟล์ขนาดเหมาะสมและคมชัดสำหรับการพิมพ์/ส่งงาน</small>
+                <small class="setting-hint">คุณภาพมีผลต่อไฟล์ที่ส่งออก ไม่ได้เปลี่ยนการจัดวางตัวอย่าง</small>
               </div>
 
               <!-- Filename -->

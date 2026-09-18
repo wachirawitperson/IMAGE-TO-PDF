@@ -119,6 +119,7 @@
   const state = {
     activeTool: 'image-to-pdf',
     items: [], // Array of { id, file, name, size, type, width, height, rotation, objectUrl, originalBlob }
+    selectedIndex: 0,
     settings: {
       paper: 'A4',
       orientation: 'auto',
@@ -164,6 +165,18 @@
     workspaceDropArea: document.getElementById('workspaceDropArea'),
     workspaceDropOverlay: document.getElementById('workspaceDropOverlay'),
     
+    // Live PDF Preview Elements
+    livePreviewPanel: document.getElementById('livePreviewPanel'),
+    previewPageIndicator: document.getElementById('previewPageIndicator'),
+    btnPreviewPrev: document.getElementById('btnPreviewPrev'),
+    btnPreviewNext: document.getElementById('btnPreviewNext'),
+    livePreviewStage: document.getElementById('livePreviewStage'),
+    previewSheetFrame: document.getElementById('previewSheetFrame'),
+    livePdfCanvas: document.getElementById('livePdfCanvas'),
+    previewSpecSize: document.getElementById('previewSpecSize'),
+    previewSpecPlacement: document.getElementById('previewSpecPlacement'),
+    previewSpecMargin: document.getElementById('previewSpecMargin'),
+
     // Settings
     settingPaper: document.getElementById('settingPaper'),
     settingFilename: document.getElementById('settingFilename'),
@@ -290,35 +303,57 @@
     // Settings Controls
     el.settingPaper.addEventListener('change', (e) => {
       state.settings.paper = e.target.value;
+      renderLivePreview();
     });
 
     document.querySelectorAll('input[name="orientation"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         state.settings.orientation = e.target.value;
+        renderLivePreview();
       });
     });
 
     document.querySelectorAll('input[name="placement"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         state.settings.placement = e.target.value;
+        renderLivePreview();
       });
     });
 
     document.querySelectorAll('input[name="margin"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         state.settings.margin = e.target.value;
+        renderLivePreview();
       });
     });
 
     document.querySelectorAll('input[name="quality"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         state.settings.quality = e.target.value;
+        // Quality affects export resolution/compression, not geometry preview
       });
     });
 
     el.settingFilename.addEventListener('input', (e) => {
       state.settings.filename = e.target.value;
     });
+
+    // Preview Page Navigation Buttons
+    if (el.btnPreviewPrev) {
+      el.btnPreviewPrev.addEventListener('click', () => {
+        if (state.selectedIndex > 0) {
+          selectCard(state.selectedIndex - 1);
+        }
+      });
+    }
+
+    if (el.btnPreviewNext) {
+      el.btnPreviewNext.addEventListener('click', () => {
+        if (state.selectedIndex < state.items.length - 1) {
+          selectCard(state.selectedIndex + 1);
+        }
+      });
+    }
 
     // Generate PDF Button
     el.btnCreatePdf.addEventListener('click', generatePdf);
@@ -444,8 +479,17 @@
           if (evt.oldIndex !== evt.newIndex) {
             const [movedItem] = state.items.splice(evt.oldIndex, 1);
             state.items.splice(evt.newIndex, 0, movedItem);
+            // If the moved card was the selected card, track its new index
+            if (state.selectedIndex === evt.oldIndex) {
+              state.selectedIndex = evt.newIndex;
+            } else if (state.selectedIndex > evt.oldIndex && state.selectedIndex <= evt.newIndex) {
+              state.selectedIndex--;
+            } else if (state.selectedIndex < evt.oldIndex && state.selectedIndex >= evt.newIndex) {
+              state.selectedIndex++;
+            }
             renderThumbnails(false); // Update page numbers without full re-render
             updateCountBadge();
+            renderLivePreview();
           }
         }
       });
@@ -691,11 +735,17 @@
         el.headerActions.classList.add('hidden');
         el.thumbnailGrid.innerHTML = '';
         el.fileInput.value = '';
+        state.selectedIndex = 0;
+        renderLivePreview();
       } else {
         el.uploadScreen.classList.add('hidden');
         el.workspaceScreen.classList.remove('hidden');
         el.headerActions.classList.remove('hidden');
+        if (state.selectedIndex >= count) {
+          state.selectedIndex = Math.max(0, count - 1);
+        }
         renderThumbnails(true);
+        renderLivePreview();
       }
 
       updateCountBadge();
@@ -754,6 +804,13 @@
         const badge = card.querySelector('.page-badge');
         if (badge) badge.textContent = `#${index + 1}`;
         
+        // Update selected class
+        if (index === state.selectedIndex) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+
         // Update keyboard reorder buttons disabled state
         const btnPrev = card.querySelector('.btn-move-prev');
         const btnNext = card.querySelector('.btn-move-next');
@@ -766,9 +823,17 @@
   // Create single card element
   function createCardElement(item, index) {
     const card = document.createElement('div');
-    card.className = 'thumb-card';
+    card.className = 'thumb-card' + (index === state.selectedIndex ? ' selected' : '');
     card.setAttribute('role', 'listitem');
     card.dataset.id = item.id;
+
+    // Card click selects page for live preview
+    card.addEventListener('click', () => {
+      const curIdx = state.items.findIndex(it => it.id === item.id);
+      if (curIdx !== -1) {
+        selectCard(curIdx);
+      }
+    });
 
     // Formatting size
     const sizeStr = formatFileSize(item.size);
@@ -817,6 +882,10 @@
       item.rotation = (item.rotation + 90) % 360;
       const img = card.querySelector('.card-preview-img');
       img.style.transform = `rotate(${item.rotation}deg)`;
+      const curIdx = state.items.findIndex(it => it.id === item.id);
+      if (curIdx === state.selectedIndex) {
+        renderLivePreview();
+      }
     });
 
     // Delete Button
@@ -850,6 +919,9 @@
       if (removed.objectUrl) {
         URL.revokeObjectURL(removed.objectUrl);
       }
+      if (state.selectedIndex >= state.items.length) {
+        state.selectedIndex = Math.max(0, state.items.length - 1);
+      }
       syncUI();
     }
   }
@@ -863,6 +935,7 @@
 
     const [moved] = state.items.splice(idx, 1);
     state.items.splice(targetIdx, 0, moved);
+    state.selectedIndex = targetIdx;
     syncUI();
   }
 
@@ -881,6 +954,7 @@
         if (img) img.style.transform = `rotate(${it.rotation}deg)`;
       }
     });
+    renderLivePreview();
     showToast('หมุนทุกภาพ 90° เรียบร้อย', 'success');
   }
 
@@ -1138,6 +1212,200 @@
     return { x, y, width: drawWidth, height: drawHeight };
   }
 
+  // --- Select Active Preview Card ---
+  function selectCard(index) {
+    if (state.items.length === 0) {
+      state.selectedIndex = 0;
+      renderLivePreview();
+      return;
+    }
+    const clampedIndex = Math.max(0, Math.min(index, state.items.length - 1));
+    state.selectedIndex = clampedIndex;
+
+    // Update highlight in thumbnail grid
+    if (el.thumbnailGrid) {
+      const cards = el.thumbnailGrid.querySelectorAll('.thumb-card');
+      cards.forEach((card, idx) => {
+        if (idx === clampedIndex) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+    }
+
+    renderLivePreview();
+  }
+
+  // --- Live PDF Sheet Preview Engine ---
+  let previewRenderTimer = null;
+  function renderLivePreview() {
+    if (previewRenderTimer) {
+      cancelAnimationFrame(previewRenderTimer);
+    }
+    previewRenderTimer = requestAnimationFrame(() => {
+      _executeRenderLivePreview();
+    });
+  }
+
+  function _executeRenderLivePreview() {
+    if (!el.livePdfCanvas || !el.previewSheetFrame) return;
+
+    const total = state.items.length;
+    if (total === 0) {
+      if (el.previewPageIndicator) el.previewPageIndicator.textContent = 'หน้า 0 / 0';
+      if (el.btnPreviewPrev) el.btnPreviewPrev.disabled = true;
+      if (el.btnPreviewNext) el.btnPreviewNext.disabled = true;
+      const ctx = el.livePdfCanvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, el.livePdfCanvas.width, el.livePdfCanvas.height);
+      return;
+    }
+
+    // Clamp selected index
+    if (state.selectedIndex >= total) {
+      state.selectedIndex = total - 1;
+    }
+    if (state.selectedIndex < 0) {
+      state.selectedIndex = 0;
+    }
+
+    const currentIdx = state.selectedIndex;
+    const currentItem = state.items[currentIdx];
+    if (!currentItem) return;
+
+    // Update Navigation UI
+    if (el.previewPageIndicator) {
+      el.previewPageIndicator.textContent = `หน้า ${currentIdx + 1} / ${total}`;
+    }
+    if (el.btnPreviewPrev) {
+      el.btnPreviewPrev.disabled = currentIdx === 0;
+    }
+    if (el.btnPreviewNext) {
+      el.btnPreviewNext.disabled = currentIdx === total - 1;
+    }
+
+    // Calculate rotated image dimensions & aspect ratio
+    const rot = (currentItem.rotation || 0) % 360;
+    const isRotated90 = (rot === 90 || rot === 270);
+    const effImgW = isRotated90 ? (currentItem.height || 1) : (currentItem.width || 1);
+    const effImgH = isRotated90 ? (currentItem.width || 1) : (currentItem.height || 1);
+    const imgAspectRatio = effImgW / effImgH;
+
+    // Calculate Page Dimensions using shared calculation function
+    const pageDims = calculatePageDimensions(currentItem, state.settings, imgAspectRatio);
+    const pageWidth = pageDims.pageWidth;
+    const pageHeight = pageDims.pageHeight;
+    const margin = pageDims.margin;
+
+    // Calculate Draw Rect using shared calculation function
+    const drawRect = calculateImageDrawRect(pageWidth, pageHeight, margin, imgAspectRatio, state.settings.placement);
+
+    // Update Preview Spec Info Pill
+    if (el.previewSpecSize) {
+      const isLandscape = pageWidth > pageHeight;
+      const orientLabel = isLandscape ? 'แนวนอน' : 'แนวตั้ง';
+      el.previewSpecSize.textContent = `${state.settings.paper} ${orientLabel}`;
+    }
+    if (el.previewSpecPlacement) {
+      el.previewSpecPlacement.textContent = state.settings.placement === 'fill' ? 'Fill (เต็มหน้า)' : 'Fit (พอดีหน้า)';
+    }
+    if (el.previewSpecMargin) {
+      const marginMap = { none: 'ไม่มีขอบ', small: 'ขอบเล็ก (20pt)', large: 'ขอบกว้าง (40pt)' };
+      el.previewSpecMargin.textContent = marginMap[state.settings.margin] || 'ไม่มีขอบ';
+    }
+
+    // Size the sheet frame inside stage while maintaining aspect ratio
+    const stage = el.livePreviewStage;
+    const stageWidth = (stage && stage.clientWidth > 40) ? stage.clientWidth - 28 : 280;
+    const stageHeight = (stage && stage.clientHeight > 40) ? stage.clientHeight - 28 : 200;
+
+    const pageAspect = pageWidth / pageHeight;
+    const stageAspect = stageWidth / stageHeight;
+
+    let frameW, frameH;
+    if (pageAspect > stageAspect) {
+      frameW = stageWidth;
+      frameH = stageWidth / pageAspect;
+    } else {
+      frameH = stageHeight;
+      frameW = stageHeight * pageAspect;
+    }
+
+    frameW = Math.round(frameW);
+    frameH = Math.round(frameH);
+
+    el.previewSheetFrame.style.width = `${frameW}px`;
+    el.previewSheetFrame.style.height = `${frameH}px`;
+
+    // HiDPI Canvas Scaling
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = el.livePdfCanvas;
+    canvas.width = Math.round(frameW * dpr);
+    canvas.height = Math.round(frameH * dpr);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    // 1. Clear & Draw Paper Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, frameW, frameH);
+
+    // Ratio from PDF points to Canvas pixels
+    const ptToPx = frameW / pageWidth;
+
+    // 2. Subtle Printable Area / Margin Guides if margin > 0
+    if (margin > 0) {
+      const mPx = margin * ptToPx;
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(mPx, mPx, frameW - (mPx * 2), frameH - (mPx * 2));
+      ctx.setLineDash([]);
+    }
+
+    // 3. Draw Image with Placement (Fit vs Fill) and Rotation
+    const imgObj = new Image();
+    imgObj.onload = () => {
+      // Setup clipping region to the page or printable area for fill mode
+      ctx.save();
+      if (state.settings.placement === 'fill') {
+        const mPx = margin * ptToPx;
+        ctx.beginPath();
+        ctx.rect(mPx, mPx, frameW - (mPx * 2), frameH - (mPx * 2));
+        ctx.clip();
+      }
+
+      // Target draw rectangle in canvas pixels
+      const destX = drawRect.x * ptToPx;
+      const destY = drawRect.y * ptToPx;
+      const destW = drawRect.width * ptToPx;
+      const destH = drawRect.height * ptToPx;
+
+      // Handle rotated rendering
+      if (rot !== 0) {
+        ctx.save();
+        ctx.translate(destX + destW / 2, destY + destH / 2);
+        ctx.rotate((rot * Math.PI) / 180);
+        const w = isRotated90 ? destH : destW;
+        const h = isRotated90 ? destW : destH;
+        ctx.drawImage(imgObj, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(imgObj, destX, destY, destW, destH);
+      }
+
+      ctx.restore(); // restore clipping
+      ctx.restore(); // restore HiDPI scaling
+    };
+    imgObj.onerror = () => {
+      ctx.restore();
+    };
+    imgObj.src = currentItem.objectUrl;
+  }
+
   // --- Download Trigger ---
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -1241,6 +1509,8 @@
     sanitizeFilename,
     calculatePageDimensions,
     calculateImageDrawRect,
+    renderLivePreview,
+    selectCard,
     switchTool,
     syncUI,
     showToast,
